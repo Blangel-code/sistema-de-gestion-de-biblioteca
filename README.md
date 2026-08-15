@@ -41,12 +41,12 @@ Sigue las indicaciones en pantalla para:
 - Registrar préstamos
 - Consultar listados
 
-## Estructura del proyecto (ejemplo)
+## Estructura del proyecto
 
 - README.md
 - Sistema_de_Gestion_de_Biblioteca.py / app.py  <- punto de entrada de la aplicación
 - data.db
-- requirements.txt
+- LICENSE.txt
 
 Ajusta la estructura según los archivos reales del repositorio.
 
