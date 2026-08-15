@@ -24,6 +24,7 @@ Este proyecto es una aplicación de consola escrita en Python para gestionar una
 ## Uso
 
 Ejecuta el script principal desde la consola. "Sistema_de_Gestion_de_Biblioteca.py"
+Para retroceder o salir de las opciones escribir "salir" o "0"
 
 Sigue las indicaciones en pantalla para:
 
