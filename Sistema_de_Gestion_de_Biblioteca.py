@@ -1,10 +1,95 @@
-import pandas as pd
-import datetime
+import sqlite3
 import os
 
 ruta_base = os.path.dirname(os.path.abspath(__file__))
-archivo_leido_libros = pd.read_csv(ruta_base+"\\Data\\libros.csv")
-archivo_leido_usuarios = pd.read_csv(ruta_base+"\\Data\\usuarios.csv")
+ruta_final = os.path.join(ruta_base,"datos.db")
+
+#Query Para Agregar Libros
+QUERY_AGREGAR_LIBROS = "INSERT INTO Books VALUES (?,?,?,?,?)"
+#Query Para Buscar Un Libro
+QUERY_BUSCAR_LIBRO = "SELECT * FROM Books WHERE BookID = ? OR Title = ?"
+#Query Para Mostrar TODOS Los Libros
+QUERY_MOSTRAR_LIBROS = "SELECT * FROM Books"
+#Querys Para Actualizar Libro
+QUERYS_ACTUALIZAR_LIBRO = {
+    "Title" : "UPDATE Books SET Title = ? WHERE BookID = ?",
+    "BookID" : "UPDATE Books SET BookID = ? WHERE BookID = ?",
+    "Autor" : "UPDATE Books SET Autor = ? WHERE BookID = ?",
+    "SumExistingBooks" : "UPDATE Books SET BooksAvaibles = BooksAvaibles + ?, ExistingBooks = ExistingBooks + ? WHERE BookID = ?",
+    "MinusExistingBooks" : "UPDATE Books SET BooksAvaibles = BooksAvaibles - ?, ExistingBooks = ExistingBooks - ? WHERE BookID = ?",
+    }
+#Query Para Eliminar Un Libro
+QUERY_ELIMINAR_LIBRO = "DELETE FROM Books WHERE BookID = ?"
+#Query Para Agregar Usuarios
+QUERY_AGREGAR_USUARIO = "INSERT INTO Users VALUES (?,?,?,?)"
+#Query Para Buscar TODOS Los Usuarios ()
+QUERY_MOSTRAR_USUARIOS = """SELECT u.UserID, Name, Age, TotalBooks, GROUP_CONCAT(OrderDate, ', ') AS Dates, b.BookID, b.Title, b.Autor FROM Users u
+    LEFT JOIN Orders o ON o.UserID = u.UserID
+    LEFT JOIN Books b ON o.BookID = b.BookID
+    GROUP BY u.UserID, o.BookID
+    ORDER BY u.UserID
+"""
+#Query Para Buscar Un Usuario
+QUERY_BUSCAR_USUARIO = "SELECT * FROM Users WHERE UserID = ? OR Name = ?"
+#Query Para Eliminar Un Usuario
+QUERY_ELIMINAR_USUARIO = "DELETE FROM Users WHERE UserID = ?"
+#Querys Para Actualizar Usuario
+QUERYS_ACTUALIZAR_USUARIO = {
+    "Name" : "UPDATE Users SET Name = ? WHERE UserID = ?",
+    "UserID" : "UPDATE Users SET UserID = ? WHERE UserID = ?",
+    "Age" : "UPDATE Users SET Age = ?, TotalBooks = ? WHERE UserID = ?",
+    }
+#Query Para Crear Una Orden
+QUERYS_CREAR_ORDEN = {
+    "actualizar_Books" : "UPDATE Books SET BooksAvaibles = BooksAvaibles - 1 WHERE BookID = ?",
+    "actualizar_Users" : "UPDATE Users SET TotalBooks = TotalBooks - 1 WHERE UserID = ?",
+    "crear_orden" : "INSERT INTO Orders (BookID,UserID,OrderDate) VALUES (?,?,datetime('now', 'localtime'))",
+}
+#Query Para Eliminar Una Orden
+QUERYS_ELIMINAR_ORDEN = {
+    "actualizar_Books" : "UPDATE Books SET BooksAvaibles = BooksAvaibles + 1 WHERE BookID = ?",
+    "actualizar_Users" : "UPDATE Users SET TotalBooks = TotalBooks + 1 WHERE UserID = ?",
+    "encontrar_orden" : "SELECT OrderID FROM Orders WHERE UserID = ? AND BookID = ? ORDER BY OrderID LIMIT 1",
+    "eliminar_orden" : "DELETE FROM Orders WHERE OrderID = ?",
+}
+#QueryS Para Crear Las Tablas
+QUERYS_CREAR_TABLAS = {
+    "crear_Books" : """CREATE TABLE "Books" (
+	"BookID"	TEXT UNIQUE,
+	"Title"	TEXT,
+	"Autor"	TEXT,
+	"BooksAvaibles"	INTEGER,
+	"ExistingBooks"	INTEGER,
+	PRIMARY KEY("BookID")
+)""",
+    "crear_Orders" : """CREATE TABLE "Orders" (
+	"OrderID"	INTEGER,
+	"BookID"	TEXT,
+	"UserID"	INTEGER,
+	"OrderDate"	TEXT,
+	PRIMARY KEY("OrderID" AUTOINCREMENT)
+)""",
+    "crear_Users" : """CREATE TABLE "Users" (
+	"UserID"	INTEGER UNIQUE,
+	"Name"	TEXT,
+	"Age"	INTEGER,
+	"TotalBooks"	INTEGER,
+	PRIMARY KEY("UserID")
+)"""
+}
+
+with sqlite3.connect(ruta_final) as conn:
+    try:
+      conn.cursor().execute("SELECT Name FROM Users LIMIT 1")
+    except Exception as e:
+      if str(e) == "no such table: Users":
+        conn.cursor().execute(QUERYS_CREAR_TABLAS["crear_Books"])
+        conn.cursor().execute(QUERYS_CREAR_TABLAS["crear_Orders"])
+        conn.cursor().execute(QUERYS_CREAR_TABLAS["crear_Users"])
+        conn.commit()
+      else:
+        print(f"Ocurrió Un Error Inesperado Al Intentar Crear La Tabla ({e})")
+
 
 class SalirAlMenu(Exception):
     pass
@@ -25,45 +110,21 @@ class Libro:
         self.libros_existentes = libros_existentes
 
 class Usuario:
-    def __init__(self,nombre,id_usuario,edad,libros_prestados,fecha_del_libro_prestado):
+    def __init__(self,nombre,id_usuario,edad,limite_de_libros):
         self.nombre = nombre
-        self.id_usuario = str(id_usuario)
+        self.id_usuario = id_usuario
         self.edad = edad
-        self.libros_prestados = libros_prestados
-        self.fecha_del_libro_prestado = fecha_del_libro_prestado
-        
-class MayorDeEdad(Usuario):
-    def __init__(self, nombre, id_usuario, edad, libros_prestados, fecha_del_libro_prestado):
-        super().__init__(nombre, id_usuario, edad, libros_prestados, fecha_del_libro_prestado)
-        self.maximo_de_libros = 6
-            
-class MenorDeEdad(Usuario):
-    def __init__(self, nombre, id_usuario, edad, libros_prestados, fecha_del_libro_prestado):
-        super().__init__(nombre, id_usuario, edad, libros_prestados, fecha_del_libro_prestado)
-        self.maximo_de_libros = 4
+        self.limite_de_libros = limite_de_libros
         
 class Biblioteca:
-    def __init__(self):
-        self.libros = []
-        self.usuarios = []
-        
     def encontrar_usuario(self,usuario_o_id):
-        usuario_encontrado_list = []
-        if usuario_o_id.isnumeric():
-            usuario_o_id = str(int(usuario_o_id))
-            for usuario in self.usuarios:
-                if usuario.id_usuario == usuario_o_id:
-                    usuario_encontrado_list.append(usuario)
-                    break
-        else:
-            for usuario in self.usuarios:
-                if usuario.nombre.lower() == usuario_o_id.lower():
-                    usuario_encontrado_list.append(usuario)
-        if len(usuario_encontrado_list) > 1:
+        with sqlite3.connect(ruta_final) as conn:
+            usuario_encontrado = conn.cursor().execute(QUERY_BUSCAR_USUARIO,(usuario_o_id,usuario_o_id)).fetchall()
+        if len(usuario_encontrado) > 1:
             x = 1
             print("\nSelecciona un Usuario:  ")
-            for usuario_encontrado in usuario_encontrado_list:
-                print(f"{x}) {usuario_encontrado.nombre}, {usuario_encontrado.id_usuario}")
+            for usuarios in usuario_encontrado:
+                print(f"{x}) {usuarios[1]} | {usuarios[0]}")
                 x += 1
             while True:
                 numero_usuario = pedir_input("\nIngrese el numero: ")
@@ -71,30 +132,23 @@ class Biblioteca:
                     print("\nError: Opcion no encontrada")
                     continue
                 numero_usuario = int(numero_usuario)
-                if numero_usuario <= len(usuario_encontrado_list):
-                    usuario_encontrado_list = usuario_encontrado_list[numero_usuario-1]
+                if numero_usuario <= len(usuario_encontrado):
+                    usuario_encontrado = usuario_encontrado[numero_usuario-1]
                     break
                 print("\nError: Opcion no encontrada")
         else:
-            if usuario_encontrado_list:
-                usuario_encontrado_list = usuario_encontrado_list[0]
-        return usuario_encontrado_list
+            if usuario_encontrado:
+                usuario_encontrado = usuario_encontrado[0]
+        return usuario_encontrado
 
     def encontrar_libro(self,isbn_o_titulo):
-        libro_encontrado_list = []
-        if isbn_o_titulo.count("-") == 1:
-            for libro in self.libros:
-                if libro.isbn == isbn_o_titulo:
-                    libro_encontrado_list.append(libro)
-        else:
-            for libro in self.libros:
-                if libro.titulo == isbn_o_titulo:
-                    libro_encontrado_list.append(libro)
-        if len(libro_encontrado_list) > 1:
+        with sqlite3.connect(ruta_final) as conn:
+            libro_encontrado = conn.cursor().execute(QUERY_BUSCAR_LIBRO,(isbn_o_titulo,isbn_o_titulo)).fetchall()
+        if len(libro_encontrado) > 1:
             x = 1
             print("\nSelecciona un Libro:  ")
-            for libro_encontrado in libro_encontrado_list:
-                print(f"{x}) {libro_encontrado.titulo}, {libro_encontrado.autor}")
+            for libro in libro_encontrado:
+                print(f"{x}) {libro[1]}, {libro[2]}")
                 x += 1
             while True:
                 numero_libro = pedir_input("\nIngrese el numero: ")
@@ -102,139 +156,116 @@ class Biblioteca:
                     print("\nError: Opcion no encontrada")
                     continue
                 numero_libro = int(numero_libro)
-                if numero_libro <= len(libro_encontrado_list):
-                    libro_encontrado_list = libro_encontrado_list[numero_libro-1]
+                if numero_libro <= len(libro_encontrado):
+                    libro_encontrado = libro_encontrado[numero_libro-1]
                     break
                 print("\nError: Opcion no encontrada")
         else:
-            if libro_encontrado_list:
-                libro_encontrado_list = libro_encontrado_list[0]
-        return libro_encontrado_list
+            if libro_encontrado:
+                libro_encontrado = libro_encontrado[0]
+        return libro_encontrado
     
     def eliminar_libro(self):
-        global archivo_leido_libros
         while True:
-            isbn = pedir_input("\nIngresa el ISBN o Nombre del libro: ")
-            libro_encontrado = self.encontrar_libro(isbn)
+            isbn_o_titulo = pedir_input("\nIngresa el ISBN o Nombre del libro: ").strip()
+            libro_encontrado = self.encontrar_libro(isbn_o_titulo)
             if not libro_encontrado:
                 print("\nError: No existe un libro con ese ISBN")
                 continue
             break
-        print(f"\nLibro seleccionado: {libro_encontrado.titulo}")
-        if libro_encontrado.libros_disponibles != libro_encontrado.libros_existentes:
+        print(f"\nLibro seleccionado: {libro_encontrado[1]}")
+        if libro_encontrado[3] != libro_encontrado[4]:
             print("\nError: No se puede eliminar si hay al menos un libro prestado")
             return
         while True: 
             confirmacion = pedir_input("\n¿Estás seguro de eliminar este libro? (y/n): ").lower()
             if confirmacion == "y":
-                archivo_leido_libros = archivo_leido_libros[archivo_leido_libros['isbn'] != libro_encontrado.isbn].reset_index(drop=True)
-                archivo_leido_libros.to_csv("Data/libros.csv",index = False)
-                print(f"\nEl libro {libro_encontrado.titulo} fue eliminado con exito")
-                self.libros.remove(libro_encontrado)
+                with sqlite3.connect(ruta_final) as conn:
+                    conn.cursor().execute(QUERY_ELIMINAR_LIBRO,(libro_encontrado[0],))
+                    conn.commit()
+                print(f"\nEl libro {libro_encontrado[1]} fue eliminado con exito")
             elif confirmacion == "n":
                 print("\nLibro no eliminado")
             else:
                 print("\nError: No se ha seleccionado una opcion valida")
                 continue
             break
-                            
-    def registrar_libro(self,libro):
-        self.libros.append(libro)
-        
-    def agregar_usuarios_del_csv(self):
-        cantidad_de_filas,x = archivo_leido_usuarios.shape
-        for i in range(cantidad_de_filas):
-            usuario_archivo = archivo_leido_usuarios.loc[i,:]
-            if pd.isna(usuario_archivo.libros_prestados):
-                libros_prestados = []
-            else:
-                libros_prestados = usuario_archivo.libros_prestados.split(",")
-            if pd.isna(usuario_archivo.fecha_del_libro_prestado):
-                fecha_del_libro_prestado = []
-            else:
-                fecha_del_libro_prestado = usuario_archivo.fecha_del_libro_prestado.split(",")
-                
-            if usuario_archivo.edad > 18:
-                usuario = MayorDeEdad(usuario_archivo.nombre,usuario_archivo.id_usuario,usuario_archivo.edad,libros_prestados,fecha_del_libro_prestado)
-            else:
-                usuario = MenorDeEdad(usuario_archivo.nombre,usuario_archivo.id_usuario,usuario_archivo.edad,libros_prestados,fecha_del_libro_prestado)
-            biblioteca.registrar_usuario(usuario)
     
-    def peparar_usuario(self):
-        global archivo_leido_usuarios
+    def registrar_libro(self):
         while True:
-            nombre = pedir_input("\nNombre y Apellido: ")
+            titulo = pedir_input("\nTítulo del libro: ").strip()
+            if titulo:
+                break
+            print("\nError: El titulo debe contener al menos un caracter")
+        while True:
+            autor = pedir_input("Autor: ").strip()
+            if autor:
+                break
+            print("\nError: El autor debe contener al menos un caracter\n")
+        while True:
+            isbn = pedir_input("Ingresa el ISBN del libro: ").strip()
+            if not isbn.replace("-", "", 1).isnumeric() or not isbn.count("-") == 1:
+                print('\nError: El ISBN ingresado no es valido ("numeros-numeros")\n')
+                continue
+            libro_encontrado = biblioteca.encontrar_libro(isbn)
+            if libro_encontrado:
+                print("\nYa existe un libro con esta ISBN\n")
+                continue
+            break
+        while True:
+            libros_existentes = pedir_input("Copias existentes del libro: ").strip()
+            if not libros_existentes.isnumeric():
+                print("\nError: El valor ingresado no es valido (solo numeros)\n")
+                continue
+            break
+        libro = Libro(titulo,autor,isbn,int(libros_existentes),int(libros_existentes))
+        return libro
+    
+    def registrar_usuario(self):
+        while True:
+            nombre = pedir_input("\nNombre y Apellido: ").strip().title()
             if not nombre.replace(" ","",1).isalpha() or not len(nombre.split()) == 2:
                 print("\nError: El nombre entregado no es valido (nombre y apellido)")
                 continue
             break
         while True:
-            id_usuario = pedir_input("ID de usuario: ")
+            id_usuario = pedir_input("ID de usuario: ").strip()
             if not id_usuario.isnumeric():
                 print("\nError: La ID de usuario entregado no es valida (solo numeros)\n")
                 continue
+            id_usuario = int(id_usuario)
             usuario_encontrado = self.encontrar_usuario(id_usuario)
             if usuario_encontrado:
                 print("\nError: Ya existe un usuario con el mismo ID\n")
                 continue
             break
         while True:
-            edad = pedir_input("Edad del usuario: ")
+            edad = pedir_input("Edad del usuario: ").strip()
             if not edad.isnumeric():
                 print("\nError: La edad entregada no es valida (solo numeros)\n")
                 continue
-            id_usuario = int(id_usuario)
             edad = int(edad)
-            libros_prestados = []
-            fecha_del_libro_prestado = []
-            if edad <= 10 or edad > 99:
+            if edad <= 6 or edad > 99:
                 print("\nError: El usuario tiene una edad no realista\n")
                 continue
             elif edad >= 18:
-                usuario = MayorDeEdad(nombre.title(),id_usuario,edad,libros_prestados,fecha_del_libro_prestado)
+                usuario = Usuario(nombre,id_usuario,edad,6)
             elif edad <= 17:
-                usuario = MenorDeEdad(nombre.title(),id_usuario,edad,libros_prestados,fecha_del_libro_prestado)
+                usuario = Usuario(nombre,id_usuario,edad,3)
             break
-        while True:
-            confirmacion = input("\n¿Estás seguro de añadir este usuario? (y/n): ").lower()
-            if confirmacion == "y":
-                biblioteca.registrar_usuario(usuario)
-                biblioteca.usuarios.sort(key=lambda x : int(x.id_usuario))
-                print("\nUsuario añadido con exito")
-                usuario = {
-                    'nombre' : nombre.title(),                
-                    'id_usuario' : id_usuario,
-                    'edad' : edad,
-                    'libros_prestados' : None
-                }
-                usuario = pd.DataFrame([usuario])
-                archivo_leido_usuarios = pd.concat([archivo_leido_usuarios, usuario])
-                archivo_leido_usuarios = archivo_leido_usuarios.sort_values(by='id_usuario')
-                archivo_leido_usuarios.to_csv("Data/usuarios.csv", index = False)
-                return str(id_usuario)
-            elif confirmacion == "n":
-                print("\nUsuario no añadido")
-            else:
-                print("\nError: No se ha seleccionado una opcion valida")
-                continue
-            break
-    
-    def registrar_usuario(self,usuario):
-        self.usuarios.append(usuario)
+        return usuario
 
     def prestar_libro(self,id_usuario):
-        global archivo_leido_usuarios
-        global archivo_leido_libros
         while True:
             if not id_usuario:
-                usuario_id_o_nombre = pedir_input("\nIngresa el ID o Nombre del usuario: ")
+                usuario_id_o_nombre = pedir_input("\nIngresa el ID o Nombre del usuario: ").strip().title()
             usuario_encontrado = biblioteca.encontrar_usuario(usuario_id_o_nombre)
             if not usuario_encontrado:
                 id_usuario = None
                 print("\nError: Usuario no encontrado")
                 continue
-            print(f"\nUsuario seleccionado: {usuario_encontrado.nombre}, {usuario_encontrado.id_usuario}")
-            if isinstance(usuario_encontrado,MenorDeEdad) and len(usuario_encontrado.libros_prestados) >= usuario_encontrado.maximo_de_libros or isinstance(usuario_encontrado,MayorDeEdad) and len(usuario_encontrado.libros_prestados) >= usuario_encontrado.maximo_de_libros:
+            print(f"\nUsuario seleccionado: {usuario_encontrado[1]} | {usuario_encontrado[0]}")
+            if usuario_encontrado[3] == 0:
                 print("\nError: Cantidad de prestamos maximos")
                 id_usuario = None
                 continue
@@ -242,101 +273,52 @@ class Biblioteca:
         while True:
             isbn = pedir_input("\nIngresa el ISBN o Nombre del libro: ")
             libro_encontrado = self.encontrar_libro(isbn)
-            if libro_encontrado == None:
+            if not libro_encontrado:
                 print("\nError: No existe libro con ese ISBN o Nombre")
                 continue
-            if not libro_encontrado.libros_disponibles:
-                print(f"\nError: No existen mas copias existentes del libro {libro_encontrado.titulo}")
+            if not libro_encontrado[3]:
+                print(f"\nError: No existen mas copias existentes del libro {libro_encontrado[1]}")
                 continue
-            
-            now = datetime.datetime.now()
-            fecha_de_libro_prestado = now.strftime("%d/%m %H:%M")
-            
-            archivo_leido_libros.loc[archivo_leido_libros['isbn'] == libro_encontrado.isbn, 'libros_disponibles'] = int(libro_encontrado.libros_disponibles) - 1
-            libro_encontrado.libros_disponibles = libro_encontrado.libros_disponibles - 1
-            archivo_leido_libros.to_csv("Data/libros.csv",index = False)
-            usuario_encontrado.libros_prestados.append(libro_encontrado.isbn)
-            
-            print(f"\nEl libro {libro_encontrado.titulo} fue obtenido")
-            
-            archivo_leido_usuarios['libros_prestados'] = archivo_leido_usuarios["libros_prestados"].astype(str)
-            libros_actuales = archivo_leido_usuarios.loc[archivo_leido_usuarios['id_usuario'] == int(usuario_encontrado.id_usuario), 'libros_prestados']
-            if libros_actuales.empty or pd.isna(libros_actuales.values[0]) or libros_actuales.values[0] == "nan":
-                libros_actuales = []
-            else:
-                libros_actuales = libros_actuales.values[0].split(',')
-            libros_actuales.append(str(libro_encontrado.isbn))
-            archivo_leido_usuarios.loc[archivo_leido_usuarios['id_usuario'] == int(usuario_encontrado.id_usuario), 'libros_prestados']  =  ",".join(libros_actuales)
-            
-            archivo_leido_usuarios['fecha_del_libro_prestado'] = archivo_leido_usuarios["fecha_del_libro_prestado"].astype(str)
-            fecha_de_los_libros_actuales = archivo_leido_usuarios.loc[archivo_leido_usuarios['id_usuario'] == int(usuario_encontrado.id_usuario), 'fecha_del_libro_prestado']
-            if fecha_de_los_libros_actuales.empty or pd.isna(fecha_de_los_libros_actuales.values[0]) or fecha_de_los_libros_actuales.values[0] == "nan":
-                fecha_de_los_libros_actuales = []
-            else:
-                fecha_de_los_libros_actuales = fecha_de_los_libros_actuales.values[0].split(',')
-            fecha_de_los_libros_actuales.append(fecha_de_libro_prestado)
-            usuario_encontrado.fecha_del_libro_prestado.append(str(fecha_de_libro_prestado))
-            archivo_leido_usuarios.loc[archivo_leido_usuarios['id_usuario'] == int(usuario_encontrado.id_usuario), 'fecha_del_libro_prestado']  =  ",".join(fecha_de_los_libros_actuales)
-            archivo_leido_usuarios.to_csv("Data/usuarios.csv",index = False)
+            with sqlite3.connect(ruta_final) as conn:
+                cursor = conn.cursor()
+                cursor.execute(QUERYS_CREAR_ORDEN["actualizar_Books"],(libro_encontrado[0],))
+                cursor.execute(QUERYS_CREAR_ORDEN["actualizar_Users"],(usuario_encontrado[0],))
+                cursor.execute(QUERYS_CREAR_ORDEN["crear_orden"],(libro_encontrado[0],usuario_encontrado[0]))
+                conn.commit()
+            print(f"\nEl libro {libro_encontrado[1]} fue obtenido")
             break
         
     def devolver_libro(self):
         while True:
-            usuario_id_o_nombre = pedir_input("\nIngresa tu ID o Nombre de usuario: ")
+            usuario_id_o_nombre = pedir_input("\nIngresa tu ID o Nombre de usuario: ").strip().title()
             usuario_encontrado = biblioteca.encontrar_usuario(usuario_id_o_nombre)
             if not usuario_encontrado:
                 print("\nError: Usuario no encontrado")
                 continue
-            elif not usuario_encontrado.libros_prestados:
-                print(f"\nUsuario seleccionado: {usuario_encontrado.nombre}, {usuario_encontrado.id_usuario}")
-                print("\nError: No se le ha prestado ningun libro a este usuario")
-                continue
-            print(f"\nUsuario seleccionado: {usuario_encontrado.nombre}, {usuario_encontrado.id_usuario}")
+            print(f"\nUsuario seleccionado: {usuario_encontrado[1]} | {usuario_encontrado[0]}")
             break
         while True:
-            isbn = pedir_input("\nIngresa el ISBN o Nombre del libro: ")
-            libro_encontrado = biblioteca.encontrar_libro(isbn)
+            isbn_o_titulo = pedir_input("\nIngresa el ISBN o Nombre del libro: ").strip()
+            libro_encontrado = biblioteca.encontrar_libro(isbn_o_titulo)
             if not libro_encontrado:
                 print("\nError: No existe ningun libro con el ISBN o Nombre ingresado")
                 continue
-            if not usuario_encontrado.libros_prestados:
-                print("\nError: No se le ha prestado ningun libro al usuario")
-                continue
-            print(f"\nLibro seleccionado: {libro_encontrado.titulo}")
-            num = 0
-            for i in usuario_encontrado.libros_prestados:
-                if i == libro_encontrado.isbn:
-                    archivo_leido_libros.loc[archivo_leido_libros['isbn'] == libro_encontrado.isbn, 'libros_disponibles'] = libro_encontrado.libros_disponibles + 1
-                    libro_encontrado.libros_disponibles += 1
-                    usuario_encontrado.libros_prestados.remove(libro_encontrado.isbn)
-                    archivo_leido_libros.to_csv("Data/libros.csv",index = False)
-                    
-                    print(f'\nEl libro "{libro_encontrado.titulo}" fue devuelto con exito')
-                    
-                    libros_actuales = archivo_leido_usuarios.loc[archivo_leido_usuarios['id_usuario'] == int(usuario_encontrado.id_usuario), 'libros_prestados']
-                    libros_actuales = libros_actuales.values[0].split(',')
-                    libros_actuales.remove(str(libro_encontrado.isbn))
-                    archivo_leido_usuarios.loc[archivo_leido_usuarios['id_usuario'] == int(usuario_encontrado.id_usuario), 'libros_prestados'] = ",".join(libros_actuales)
-                    
-                    fechas_actuales = archivo_leido_usuarios.loc[archivo_leido_usuarios['id_usuario'] == int(usuario_encontrado.id_usuario), 'fecha_del_libro_prestado']
-                    fechas_actuales = fechas_actuales.values[0].split(',')
-                    fechas_actuales.remove(fechas_actuales[num])
-                    usuario_encontrado.fecha_del_libro_prestado = fechas_actuales
-                    archivo_leido_usuarios.loc[archivo_leido_usuarios['id_usuario'] == int(usuario_encontrado.id_usuario), 'fecha_del_libro_prestado'] = ",".join(fechas_actuales)
-                    archivo_leido_usuarios.to_csv("Data/usuarios.csv",index = False)
-                    raise SalirAlMenu
-                num += 1
-            print("\nError: No se le ha prestado este libro")
-        
+            print(f"\nLibro seleccionado: {libro_encontrado[1]}")
+            with sqlite3.connect(ruta_final) as conn:
+                orden_encontrada = conn.cursor().execute(QUERYS_ELIMINAR_ORDEN["encontrar_orden"],(usuario_encontrado[0],libro_encontrado[0])).fetchall()
+                if not orden_encontrada:
+                    print("\nError: No se le ha prestado este libro")
+                    continue
+                orden_encontrada = orden_encontrada[0]
+                cursor = conn.cursor()
+                cursor.execute(QUERYS_ELIMINAR_ORDEN["actualizar_Books"],(libro_encontrado[0],))
+                cursor.execute(QUERYS_ELIMINAR_ORDEN["actualizar_Users"],(usuario_encontrado[0],))
+                cursor.execute(QUERYS_ELIMINAR_ORDEN["eliminar_orden"],orden_encontrada)
+                conn.commit()
+                print(f'\nEl libro "{libro_encontrado[1]}" fue devuelto con exito')
+                break
             
 biblioteca = Biblioteca()
-
-cantidad_de_filas,x = archivo_leido_libros.shape
-for i in range(cantidad_de_filas):
-    libro = archivo_leido_libros.loc[i,:]
-    biblioteca.registrar_libro(Libro(libro.titulo,libro.autor,libro.isbn,libro.libros_disponibles,libro.libros_existentes))
-
-biblioteca.agregar_usuarios_del_csv()
 
 print("Bienvenido a la Biblioteca")
 while True:        
@@ -358,50 +340,14 @@ while True:
                 
                 #Registrar un libro
                 if entrada == "1":
-                    while True:
-                        titulo = pedir_input("\nTítulo del libro: ")
-                        if titulo:
-                            break
-                        print("\nError: El titulo debe contener al menos un caracter")
-                    while True:
-                        autor = pedir_input("Autor: ")
-                        if autor:
-                            break
-                        print("\nError: El autor debe contener al menos un caracter\n")
-                    while True:
-                        isbn = pedir_input("Ingresa el ISBN del libro: ")
-                        if not isbn.replace("-", "", 1).isnumeric() or not isbn.count("-") == 1:
-                            print('\nError: El ISBN ingresado no es valido ("numeros-numeros")\n')
-                            continue
-                        libro_encontrado = biblioteca.encontrar_libro(isbn)
-                        if libro_encontrado:
-                            print("\nYa existe un libro con esta ISBN\n")
-                            continue
-                        break
-                    while True:
-                        libros_existentes = pedir_input("Copias existentes del libro: ")
-                        if not libros_existentes.isnumeric():
-                            print("\nError: El valor ingresado no es valido (solo numeros)\n")
-                            continue
-                        break
+                    libro = biblioteca.registrar_libro()
                     while True:
                         confirmacion = pedir_input("\n¿Estás seguro de añadir este libro? (y/n): ").lower()
                         if confirmacion == "y":
-                            libro = Libro(titulo,autor,isbn,int(libros_existentes),int(libros_existentes))
-                            biblioteca.registrar_libro(libro)
-                            biblioteca.libros.sort(key=lambda x : x.titulo)
-                            libro = {
-                                'titulo' : titulo,                
-                                'autor' : autor,
-                                'isbn' : isbn,
-                                'libros_disponibles' : libros_existentes,
-                                'libros_existentes' : libros_existentes
-                            }
-                            libro = pd.DataFrame([libro])
-                            archivo_leido_libros = pd.concat([archivo_leido_libros, libro])
-                            archivo_leido_libros.sort_values(by='titulo')
-                            archivo_leido_libros.to_csv("Data/libros.csv", index = False)
-                            print(f"\nEl libro {titulo} fue añadido con exito")
+                            with sqlite3.connect(ruta_final) as conn:
+                                conn.cursor().execute(QUERY_AGREGAR_LIBROS,(libro.isbn,libro.titulo,libro.autor,libro.libros_existentes,libro.libros_existentes))
+                                conn.commit()
+                            print(f"\nEl libro {libro.titulo} fue añadido con exito")
                         elif confirmacion == "n":
                             print("\nLibro no ha añadido")
                         else:
@@ -411,24 +357,26 @@ while True:
                     
                 #Lista de los libros
                 elif entrada == "2":
-                    for cantidad_de_libros in biblioteca.libros:
-                        print('\nLibro: '+cantidad_de_libros.titulo)
-                        print('Autor: '+cantidad_de_libros.autor)
-                        print(f'Cantidad disponible: "{cantidad_de_libros.libros_disponibles}" de "{cantidad_de_libros.libros_existentes}"')
-                        print(f"ISBN: {cantidad_de_libros.isbn}")
+                    with sqlite3.connect(ruta_final) as conn:
+                        cantidad_de_libros = conn.cursor().execute(QUERY_MOSTRAR_LIBROS).fetchall()
+                    for libro in cantidad_de_libros:
+                        print('\nLibro: '+libro[1])
+                        print('Autor: '+libro[2])
+                        print(f'Cantidad disponible: "{libro[3]}" de "{libro[4]}"')
+                        print(f"ISBN: {libro[0]}")
                     break
                 
                 #Editar un libro
                 elif entrada == "3":
                     print()
                     while True:
-                        isbn = pedir_input("Ingresa el ISBN o Nombre del libro: ")
-                        libro_a_editar = biblioteca.encontrar_libro(isbn)
+                        isbn_o_titulo = pedir_input("Ingresa el ISBN o Nombre del libro: ")
+                        libro_a_editar = biblioteca.encontrar_libro(isbn_o_titulo)
                         if not libro_a_editar:
                             print("\nError: No existe libro con ese ISBN o Nombre\n")
                             continue
                         break
-                    print(f"\nLibro seleccionado: {libro_a_editar.titulo}")
+                    print(f"\nLibro seleccionado: {libro_a_editar[1]}")
                     while True:
                         print("\n1)Titulo")
                         print("2)Autor")
@@ -439,25 +387,17 @@ while True:
                         #Editar el titulo
                         if seleccion_a_editar == "1":
                             while True:
-                                titulo_a_editar_encontrado = None
                                 titulo_nuevo = pedir_input("\nTitulo nuevo: ")
+                                if titulo_nuevo == libro_a_editar[1]:
+                                    print("\nError: El titulo No Puede Ser Igual Que El Anterior")
+                                    continue
                                 if not titulo_nuevo:
                                     print("\nError: El titulo debe contener al menos un caracter")
                                     continue
-                                for libro in biblioteca.libros:
-                                    if libro.titulo == titulo_nuevo:
-                                        titulo_a_editar = titulo_nuevo
-                                        print("\nError: Ya existe un libro con el mismo titulo")
-                                        break
-                                if titulo_a_editar_encontrado:
-                                    continue
                                 break
-                            archivo_leido_libros.loc[archivo_leido_libros['isbn'] == libro_a_editar.isbn, 'titulo'] = titulo_nuevo
-                            archivo_leido_libros = archivo_leido_libros.sort_values(by='titulo')
-                            archivo_leido_libros.to_csv("Data/libros.csv",index = False)
-                            libro_a_editar.titulo = titulo_nuevo
+                            with sqlite3.connect(ruta_final) as conn:
+                                conn.cursor().execute(QUERYS_ACTUALIZAR_LIBRO["Title"],(titulo_nuevo,libro_a_editar[0]))
                             print("\nTitulo del libro editado con exito")
-                            biblioteca.libros.sort(key=lambda x : x.titulo)
                             
                         #Editar el autor
                         elif seleccion_a_editar == "2":
@@ -466,23 +406,22 @@ while True:
                                 if not autor_nuevo:
                                     print("\nError: El nuevo autor debe contener al menos un caracter")
                                     continue
-                                if autor_nuevo == libro_a_editar.autor:
+                                if autor_nuevo == libro_a_editar[2]:
                                     print("\nError: El nuevo autor no puede ser igual que el anterior\n")
                                     continue
                                 break
-                            archivo_leido_libros.loc[archivo_leido_libros['isbn'] == libro_a_editar.isbn, 'autor'] = autor_nuevo
-                            archivo_leido_libros.to_csv("Data/libros.csv",index = False)
-                            libro_a_editar.autor = autor_nuevo
+                            with sqlite3.connect(ruta_final) as conn:
+                                conn.cursor().execute(QUERYS_ACTUALIZAR_LIBRO["Autor"],(autor_nuevo,libro_a_editar[0]))
                             print("\nAutor del libro editado con exito")
-                            
+
                         #Editar el ISBN
                         elif seleccion_a_editar == "3":
-                            if libro_a_editar.libros_disponibles != libro_a_editar.libros_existentes:
+                            if libro_a_editar[3] != libro_a_editar[4]:
                                 print("\nError: No se puede cambiar el ISBN si hay algun libro prestado")
                                 continue
                             while True:
                                 nuevo_isbn = pedir_input("\nIngrese el nuevo ISBN: ")
-                                if nuevo_isbn == libro_a_editar.isbn:
+                                if nuevo_isbn == libro_a_editar[0]:
                                     print("\nError: El nuevo ISBN no puede ser igual que el anterior")
                                     continue
                                 if not nuevo_isbn.replace("-", "", 1).isnumeric() or not nuevo_isbn.count("-") == 1:
@@ -493,41 +432,37 @@ while True:
                                     print("\nYa existe un libro con esta ISBN")
                                     continue
                                 break
-                            archivo_leido_libros.loc[archivo_leido_libros['isbn'] == libro_a_editar.isbn, 'isbn'] = nuevo_isbn
-                            archivo_leido_libros.to_csv("Data/libros.csv",index = False)
-                            libro_a_editar.isbn = nuevo_isbn
+                            with sqlite3.connect(ruta_final) as conn:
+                                conn.cursor().execute(QUERYS_ACTUALIZAR_LIBRO["BookID"],(nuevo_isbn,libro_a_editar[0]))
                             print("\nISBN del libro editado con exito")
                             
                         #Editar la cantidad de libros disponibles
                         elif seleccion_a_editar == "4":
                             cantidad_de_libros_cambiada = False
                             while not cantidad_de_libros_cambiada:
-                                print(f"\nCantidad actual: {libro_a_editar.libros_disponibles}")
-                                nuevo_libros_disponibles = pedir_input("\nCantidad a sumar o restar: ")
-                                if not nuevo_libros_disponibles.isnumeric():
+                                print(f"\nCantidad actual: {libro_a_editar[3]}")
+                                nueva_cantidad = pedir_input("\nCantidad a sumar o restar: ").strip()
+                                if not nueva_cantidad.isnumeric():
                                     print("\nError: La cantidad ingresada no es valida")
                                     continue
-                                nuevo_libros_disponibles = int(nuevo_libros_disponibles)
+                                nueva_cantidad = int(nueva_cantidad)
                                 while True:
                                     print("\n1)Sumar")
                                     print("2)Restar")
                                     print("3)Cambiar cantidad colocada")
                                     sumar_o_restar = pedir_input("Selecciona si quieres sumar o restar la cantidad: ")
                                     if sumar_o_restar == "1":
-                                        archivo_leido_libros.loc[archivo_leido_libros['isbn'] == libro_a_editar.isbn, 'libros_disponibles'] = int(libro_a_editar.libros_disponibles) + nuevo_libros_disponibles
-                                        archivo_leido_libros.loc[archivo_leido_libros['isbn'] == libro_a_editar.isbn, 'libros_existentes'] = int(libro_a_editar.libros_existentes) + nuevo_libros_disponibles
-                                        archivo_leido_libros.to_csv("Data/libros.csv",index = False)
-                                        libro_a_editar.libros_disponibles = int(libro_a_editar.libros_disponibles) + nuevo_libros_disponibles
-                                        libro_a_editar.libros_existentes = int(libro_a_editar.libros_existentes) + nuevo_libros_disponibles
+                                        with sqlite3.connect(ruta_final) as conn:
+                                            conn.cursor().execute(QUERYS_ACTUALIZAR_LIBRO["SumExistingBooks"],(nueva_cantidad,nueva_cantidad,libro_a_editar[0]))
+                                            conn.commit()
                                     elif sumar_o_restar == "2":
-                                        if int(libro_a_editar.libros_disponibles) - int(nuevo_libros_disponibles) < 0:
+                                        if libro_a_editar[3] - nueva_cantidad < 0:
                                             print("\nError: Se ha eliminado mas libros de los que existian")
                                             break
-                                        archivo_leido_libros.loc[archivo_leido_libros['isbn'] == libro_a_editar.isbn, 'libros_disponibles'] = int(libro_a_editar.libros_disponibles) - nuevo_libros_disponibles
-                                        archivo_leido_libros.loc[archivo_leido_libros['isbn'] == libro_a_editar.isbn, 'libros_existentes'] = int(libro_a_editar.libros_existentes) - nuevo_libros_disponibles
-                                        archivo_leido_libros.to_csv("Data/libros.csv",index = False)
-                                        libro_a_editar.libros_disponibles = int(libro_a_editar.libros_disponibles) - nuevo_libros_disponibles
-                                        libro_a_editar.libros_existentes = int(libro_a_editar.libros_existentes) - nuevo_libros_disponibles
+                                        else:
+                                            with sqlite3.connect(ruta_final) as conn:
+                                                conn.cursor().execute(QUERYS_ACTUALIZAR_LIBRO["MinusExistingBooks"],(nueva_cantidad,nueva_cantidad,libro_a_editar[0]))
+                                                conn.commit()
                                     elif sumar_o_restar == "3":
                                         break
                                     else:
@@ -536,7 +471,6 @@ while True:
                                     cantidad_de_libros_cambiada = True
                                     print("\nCantidad del libro editada con exito")
                                     break
-
                         else:
                             print("\nError: No se ha seleccionado una opcion valida")
                             continue
@@ -559,12 +493,29 @@ while True:
                 
                 #Agregar un usuario
                 if entrada == "1":
-                    id_usuario = biblioteca.peparar_usuario()
-                    if id_usuario:
+                    usuario = biblioteca.registrar_usuario()
+                    while True:
+                        confirmacion = input("\n¿Estás seguro de añadir este usuario? (y/n): ").lower()
+                        if confirmacion == "y":
+                            try:
+                                with sqlite3.connect(ruta_final) as conn:
+                                    conn.cursor().execute(QUERY_AGREGAR_USUARIO,(usuario.id_usuario,usuario.nombre,usuario.edad,usuario.limite_de_libros))
+                                    conn.commit()
+                                print("\nUsuario añadido con exito")
+                            except sqlite3.OperationalError as e:
+                                if "locked" in str(e).lower():
+                                    print("\nBase De Datos Bloqueada")
+                        elif confirmacion == "n":
+                            print("\nUsuario no añadido")
+                        else:
+                            print("\nError: No se ha seleccionado una opcion valida")
+                            continue
+                        break
+                    if confirmacion == "y":
                         while True:
                             continuacion = input("\nDeseas pedir prestado un libro con este usuario? (y/n): ").lower()
                             if continuacion == "y":
-                                biblioteca.prestar_libro(id_usuario)
+                                biblioteca.prestar_libro(usuario.id_usuario)
                                 break
                             elif continuacion == "n":
                                 break
@@ -573,30 +524,26 @@ while True:
                             
                 #Lista de los usuarios
                 elif entrada == "2":
-                    for cantidad_de_usuarios in biblioteca.usuarios:
-                        print(f"\n{cantidad_de_usuarios.nombre}\nSu ID es: {cantidad_de_usuarios.id_usuario}\nTiene {cantidad_de_usuarios.edad} años de edad")
-                        if cantidad_de_usuarios.libros_prestados:
-                            titulos_y_indices = {}
-                            for idx, isbn in enumerate(cantidad_de_usuarios.libros_prestados):
-                                for libro in biblioteca.libros:
-                                    if isbn == libro.isbn:
-                                        if libro.titulo not in titulos_y_indices:
-                                            titulos_y_indices[libro.titulo] = []
-                                        titulos_y_indices[libro.titulo].append(idx)
-                            for titulo, indices in titulos_y_indices.items():
-                                fechas_a_mostrar = [cantidad_de_usuarios.fecha_del_libro_prestado[i] for i in indices]
-                                print(f"Libro prestado: {titulo}, '{len(indices)}', {fechas_a_mostrar}")
+                    usuario_anterior = None
+                    with sqlite3.connect(ruta_final) as conn:
+                        lista_usuarios = conn.cursor().execute(QUERY_MOSTRAR_USUARIOS).fetchall()
+                    for usuario in lista_usuarios:
+                        if not usuario_anterior == usuario[0]:
+                            print(f"\n{usuario[1]}\nSu ID es: {usuario[0]}\nTiene {usuario[2]} años de edad\nPuede pedir '{usuario[3]}' libros")
+                        if usuario[4]:
+                            print(f"Poseé el libro: {usuario[6]} '{usuario[4].count(",")+1}'\nHecho por: {usuario[7]} Pedido en la fecha: {usuario[4]}")
+                        usuario_anterior = usuario[0]
                                     
                 #Editar usuarios
                 elif entrada == "3":
                     while True:
-                        usuario_id_o_nombre = pedir_input("\nEscribe el ID o Nombre del usuario al cual desea editar: ")
+                        usuario_id_o_nombre = pedir_input("\nEscribe el ID o Nombre del usuario al cual desea editar: ").strip().title()
                         usuario_a_editar = biblioteca.encontrar_usuario(usuario_id_o_nombre)
                         if not usuario_a_editar:
                             print("\nError: Usuario no encontrado")
                             continue
                         break
-                    print(f"\nUsuario seleccionado: {usuario_a_editar.nombre},{usuario_a_editar.id_usuario}")
+                    print(f"\nUsuario seleccionado: {usuario_a_editar[1]} | {usuario_a_editar[0]}")
                     
                     while True:
                         print("\n1)Editar nombre de usuario")
@@ -607,27 +554,27 @@ while True:
                         #Editar el nombre del usuario
                         if entrada == "1":
                             while True:
-                                nuevo_nombre = pedir_input("\nNuevo nombre y apellido del usuario: ")
-                                if nuevo_nombre == usuario_a_editar.nombre:
+                                nuevo_nombre = pedir_input("\nNuevo nombre y apellido del usuario: ").title()
+                                if nuevo_nombre == usuario_a_editar[1]:
                                     print("\nError: El nuevo nombre del usuario no puede ser igual al actual")
                                     continue
                                 if not nuevo_nombre.replace(" ","",1).isalpha() or not len(nuevo_nombre.split()) == 2:
                                     print("\nError: El nombre no es valido (nombre y apellido)")
                                     continue
                                 break
-                            archivo_leido_usuarios.loc[archivo_leido_usuarios['id_usuario'] == int(usuario_a_editar.id_usuario),'nombre'] = nuevo_nombre.title()
-                            archivo_leido_usuarios.to_csv("Data/usuarios.csv",index=False)
-                            usuario_a_editar.nombre = nuevo_nombre.title()
+                            with sqlite3.connect(ruta_final) as conn:
+                                conn.cursor().execute(QUERYS_ACTUALIZAR_USUARIO["Name"],(nuevo_nombre,usuario_a_editar[0],))
+                                conn.commit()
                             print("\nNombre cambiado con exito")
                             
                         #Editar el ID del usuario
                         elif entrada == "2":
                             while True:
-                                nuevo_id_usuario = pedir_input("\nNuevo numero ID de usuario: ")
+                                nuevo_id_usuario = pedir_input("\nNuevo numero ID de usuario: ").strip()
                                 if not nuevo_id_usuario.isnumeric():
                                     print("\nError: La ID de usuario entregado no es valida (solo numeros)")
                                     continue
-                                if str(int(nuevo_id_usuario)) == usuario_a_editar.id_usuario:
+                                if nuevo_id_usuario == usuario_a_editar[0]:
                                     print("\nError: El nuevo ID del usuario no puede ser igual al actual")
                                     continue
                                 usuario_encontrado = biblioteca.encontrar_usuario(nuevo_id_usuario)
@@ -635,38 +582,33 @@ while True:
                                     print("\nError: Ya existe un usuario con la misma ID")
                                     continue
                                 break
-                            archivo_leido_usuarios.loc[archivo_leido_usuarios['id_usuario'] == int(usuario_a_editar.id_usuario),'id_usuario'] = int(nuevo_id_usuario)
-                            archivo_leido_usuarios = archivo_leido_usuarios.sort_values(by='id_usuario')
-                            archivo_leido_usuarios.to_csv("Data/usuarios.csv",index=False)
-                            usuario_a_editar.id_usuario = str(int(nuevo_id_usuario))
-                            biblioteca.usuarios.sort(key=lambda x : int(x.id_usuario))
+                            with sqlite3.connect(ruta_final) as conn:
+                                conn.cursor().execute(QUERYS_ACTUALIZAR_USUARIO["UserID"],(nuevo_id_usuario,usuario_a_editar[0],))
+                                conn.commit()
                             print("\nID del usuario cambiada con exito")
                         
                         #Editar la edad del usuario
                         elif entrada == "3":
                             while True:
-                                nueva_edad = pedir_input("\nNueva edad del usuario: ")
+                                nueva_edad = pedir_input("\nNueva edad del usuario: ").strip()
                                 if not nueva_edad.isnumeric():
                                     print("\nError: La edad ingresada no es valida (solo numeros)")
                                     continue
                                 nueva_edad = int(nueva_edad)
-                                if nueva_edad <= 10 or nueva_edad > 99:
-                                    print("\nError: El usuario debe tener mas edad")
+                                if nueva_edad <= 6 or nueva_edad > 99:
+                                    print("\nError: La Edad Del Usuario No Es Válida")
                                     continue
                                 elif nueva_edad >= 18:
-                                    usuario_a_editar_edad_cambiada = MayorDeEdad(usuario_a_editar.nombre,usuario_a_editar.id_usuario,nueva_edad,usuario_a_editar.libros_prestados,usuario_a_editar.fecha_del_libro_prestado)
+                                    nuevo_limite_de_libros = 6
                                 elif nueva_edad <= 17:
-                                    if len(usuario_a_editar.libros_prestados) >= 4:
+                                    if usuario_a_editar[3] <= 3:
                                         print("\nError: El usuario sobrepasa el limite de libros para menores de edad")
                                         continue
-                                    usuario_a_editar_edad_cambiada = MenorDeEdad(usuario_a_editar.nombre,usuario_a_editar.id_usuario,nueva_edad,usuario_a_editar.libros_prestados,usuario_a_editar.fecha_del_libro_prestado)
+                                    nuevo_limite_de_libros = 3
                                 break
-                            archivo_leido_usuarios.loc[archivo_leido_usuarios['id_usuario'] == int(usuario_a_editar.id_usuario),'edad'] = nueva_edad
-                            archivo_leido_usuarios.to_csv("Data/usuarios.csv",index=False)
-                            biblioteca.usuarios.remove(usuario_a_editar)
-                            biblioteca.usuarios.append(usuario_a_editar_edad_cambiada)
-                            biblioteca.usuarios.sort(key=lambda x : int(x.id_usuario))
-                            usuario_a_editar = usuario_a_editar_edad_cambiada
+                            with sqlite3.connect(ruta_final) as conn:
+                                conn.cursor().execute(QUERYS_ACTUALIZAR_USUARIO["Age"],(nueva_edad,nuevo_limite_de_libros,usuario_a_editar[0],))
+                                conn.commit()
                             print("\nEdad editada con exito")
                         else:
                             print("\nError: No se ha seleccionado una opcion valida")
@@ -675,21 +617,20 @@ while True:
                 #Eliminar un usuario
                 elif entrada == "4":
                     while True:
-                        id_o_nombre_usuario_a_eliminar = pedir_input("\nID del usuario a eliminar: ")
+                        id_o_nombre_usuario_a_eliminar = pedir_input("\nID del usuario a eliminar: ").strip().title()
                         usuario_a_eliminar = biblioteca.encontrar_usuario(id_o_nombre_usuario_a_eliminar)
                         if not usuario_a_eliminar:
                             print("\nError: Usuario no encontrado")
                             continue
-                        print(f"\nEl usuario seleccionado es: {usuario_a_eliminar.nombre}")
-                        if usuario_a_eliminar.libros_prestados:
-                            print("\nError: No se puede eliminar que tenga algun libro prestado")
+                        print(f"\nEl usuario seleccionado es: {usuario_a_eliminar[1]}")
+                        if usuario_a_eliminar[3] == 0:
+                            print("\nError: No se puede eliminar si tiene algun libro prestado")
                             break
-                        while True: 
+                        while True:
                             confirmacion = input("\n¿Estás seguro de eliminar este usuario? (y/n): ").lower()
                             if confirmacion == "y":
-                                archivo_leido_usuarios = archivo_leido_usuarios[archivo_leido_usuarios['id_usuario'] != int(usuario_a_eliminar.id_usuario)].reset_index(drop=True)
-                                archivo_leido_usuarios.to_csv("Data/usuarios.csv",index=False)
-                                biblioteca.usuarios.remove(usuario_a_eliminar)
+                                with sqlite3.connect(ruta_final) as conn:
+                                    conn.cursor().execute(QUERY_ELIMINAR_USUARIO,(usuario_a_eliminar[0],))
                                 print("\nUsuario eliminado con exito")
                             elif confirmacion == "n":
                                 print("\nUsuario no eliminado")
@@ -698,10 +639,8 @@ while True:
                                 continue
                             break
                         break
-                            
                 else:    
-                    print("\nError: No se ha seleccionado una opcion valida")
-                    
+                    print("\nError: No se ha seleccionado una opcion valida")       
         elif entrada == "3":
                 biblioteca.prestar_libro(None)
         elif entrada == "4":
@@ -710,6 +649,5 @@ while True:
             break
         else:
             print("\nError: No se ha seleccionado una opcion valida")
-            
     except SalirAlMenu:
         continue
