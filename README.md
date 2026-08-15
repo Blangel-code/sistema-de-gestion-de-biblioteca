@@ -13,7 +13,6 @@ Este proyecto es una aplicación de consola escrita en Python para gestionar una
 ## Requisitos
 
 - Python 3.8 o superior
-- (Opcional) Virtualenv para aislar dependencias
 
 ## Instalación
 
@@ -21,14 +20,6 @@ Este proyecto es una aplicación de consola escrita en Python para gestionar una
 
    git clone https://github.com/Blangel-code/sistema-de-gestion-de-biblioteca.git
    cd sistema-de-gestion-de-biblioteca
-
-2. (Opcional) Crear y activar un entorno virtual:
-
-   python -m venv venv
-   # Windows
-   venv\Scripts\activate
-   # macOS / Linux
-   source venv/bin/activate
 
 ## Uso
 
