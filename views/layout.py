@@ -4,7 +4,7 @@ import flet as ft
 from config import PALETTE as COLORS
 from config import VALID_ROUTES
 from views.books_view import BooksView
-from views.dashboard_view import DashboardHeader
+from views.dashboard_view import DashboardView
 from views.loans_view import LoansView
 from views.users_view import UsersView
 
@@ -175,45 +175,6 @@ class Sidebar(ft.Container):
         self._on_navigate(route)
 
 
-class SummaryCard(ft.Container):
-    """Tarjeta de resumen visual; sus cifras son datos mock de la interfaz."""
-
-    def __init__(self, title: str, value: str, detail: str, icon: str, color: str) -> None:
-        super().__init__(
-            expand=True,
-            padding=20,
-            bgcolor=ft.Colors.WHITE,
-            border_radius=12,
-            border=ft.Border.all(1, ft.Colors.BLUE_GREY_100),
-            content=ft.Column(
-                controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Text(title, size=13, color=ft.Colors.BLUE_GREY_600),
-                            ft.Container(
-                                content=ft.Icon(icon, color=color, size=19),
-                                width=36,
-                                height=36,
-                                bgcolor=ft.Colors.BLUE_GREY_50,
-                                border_radius=10,
-                                alignment=ft.Alignment(0, 0),
-                            ),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    ft.Text(
-                        value,
-                        size=28,
-                        weight=ft.FontWeight.BOLD,
-                        color=COLORS.TEXT,
-                    ),
-                    ft.Text(detail, size=12, color=ft.Colors.BLUE_GREY_500),
-                ],
-                spacing=8,
-            ),
-        )
-
-
 class ContentView(ft.Container):
     """Zona principal que renderiza el contenido asociado a cada ruta."""
 
@@ -227,8 +188,9 @@ class ContentView(ft.Container):
 
     def _build_content(self) -> ft.Column:
         if self.current_route == "/":
-            header = DashboardHeader()
-            body = self._dashboard_body()
+            view = DashboardView()
+            header = view.header
+            body = view
         elif self.current_route == "/libros":
             view = BooksView()
             header = view.header
@@ -250,9 +212,6 @@ class ContentView(ft.Container):
                 ft.Row(
                     controls=[
                         header,
-                        self._dashboard_actions()
-                        if self.current_route == "/"
-                        else ft.Container(),
                         ft.Container(expand=True),
                         ft.IconButton(
                             icon=ft.Icons.NOTIFICATIONS_NONE_OUTLINED,
@@ -273,141 +232,6 @@ class ContentView(ft.Container):
                 ft.Container(content=body, expand=True),
             ],
             expand=True,
-        )
-
-    def _dashboard_body(self) -> ft.Control:
-        return ft.Column(
-            controls=[
-                ft.Row(
-                    controls=[
-                        SummaryCard(
-                            "Libros en catálogo",
-                            "1,248",
-                            "+12 este mes",
-                            ft.Icons.MENU_BOOK_OUTLINED,
-                            COLORS.PRIMARY,
-                        ),
-                        SummaryCard(
-                            "Usuarios activos",
-                            "356",
-                            "+8 esta semana",
-                            ft.Icons.GROUP_OUTLINED,
-                            COLORS.SECONDARY,
-                        ),
-                        SummaryCard(
-                            "Préstamos activos",
-                            "84",
-                            "6 vencen pronto",
-                            ft.Icons.SWAP_HORIZ_OUTLINED,
-                            COLORS.WARNING,
-                        ),
-                    ],
-                    spacing=16,
-                ),
-                ft.Container(height=8),
-                ft.Row(
-                    controls=[
-                        self._activity_panel(),
-                        self._quick_actions_panel(),
-                    ],
-                    spacing=16,
-                    vertical_alignment=ft.CrossAxisAlignment.START,
-                ),
-            ],
-            spacing=16,
-            scroll=ft.ScrollMode.AUTO,
-        )
-
-    @staticmethod
-    def _dashboard_actions() -> ft.Row:
-        return ft.Row(
-            controls=[
-                ft.OutlinedButton("Registrar préstamo", icon=ft.Icons.SWAP_HORIZ_OUTLINED),
-                ft.ElevatedButton("Añadir libro", icon=ft.Icons.MENU_BOOK_OUTLINED),
-            ],
-            spacing=8,
-        )
-
-    def _activity_panel(self) -> ft.Container:
-        activities = [
-            ("El principito", "María González", "Hoy, 10:42", COLORS.PRIMARY),
-            ("Cien años de soledad", "Carlos Rodríguez", "Ayer, 16:18", COLORS.SECONDARY),
-            ("Hábitos atómicos", "Ana Martínez", "Ayer, 11:05", COLORS.WARNING),
-        ]
-        rows = [
-            ft.Row(
-                controls=[
-                    ft.Container(width=8, height=8, bgcolor=color, border_radius=4),
-                    ft.Column(
-                        controls=[
-                            ft.Text(title, size=13, weight=ft.FontWeight.W_600),
-                            ft.Text(f"Prestado a {user}", size=12, color=ft.Colors.BLUE_GREY_500),
-                        ],
-                        spacing=3,
-                        expand=True,
-                    ),
-                    ft.Text(date, size=11, color=ft.Colors.BLUE_GREY_400),
-                ],
-                spacing=10,
-            )
-            for title, user, date, color in activities
-        ]
-        return ft.Container(
-            expand=2,
-            padding=20,
-            bgcolor=COLORS.SURFACE,
-            border_radius=12,
-            border=ft.Border.all(1, ft.Colors.BLUE_GREY_100),
-            content=ft.Column(
-                controls=[
-                    ft.Text("Actividad reciente", size=16, weight=ft.FontWeight.BOLD),
-                    ft.Text("Últimos movimientos registrados", size=12, color=ft.Colors.BLUE_GREY_500),
-                    ft.Divider(height=12, color=ft.Colors.BLUE_GREY_100),
-                    *rows,
-                ],
-                spacing=12,
-            ),
-        )
-
-    def _quick_actions_panel(self) -> ft.Container:
-        return ft.Container(
-            expand=1,
-            padding=20,
-            bgcolor=COLORS.PRIMARY,
-            border_radius=12,
-            content=ft.Column(
-                controls=[
-                    ft.Text(
-                        "Acciones rápidas",
-                        size=16,
-                        weight=ft.FontWeight.BOLD,
-                        color=ft.Colors.WHITE,
-                    ),
-                    ft.Text(
-                        "Accede a las tareas más frecuentes.",
-                        size=12,
-                        color=ft.Colors.BLUE_100,
-                    ),
-                    ft.Divider(height=12, color=ft.Colors.BLUE_400),
-                    ft.FilledButton(
-                        "Registrar préstamo",
-                        icon=ft.Icons.ADD,
-                        color=ft.Colors.BLUE_800,
-                        bgcolor=ft.Colors.WHITE,
-                        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)),
-                    ),
-                    ft.OutlinedButton(
-                        "Añadir libro",
-                        icon=ft.Icons.MENU_BOOK_OUTLINED,
-                        style=ft.ButtonStyle(
-                            color=ft.Colors.WHITE,
-                            side=ft.BorderSide(1, ft.Colors.BLUE_200),
-                            shape=ft.RoundedRectangleBorder(radius=8),
-                        ),
-                    ),
-                ],
-                spacing=12,
-            ),
         )
 
     def _placeholder_body(self) -> ft.Control:

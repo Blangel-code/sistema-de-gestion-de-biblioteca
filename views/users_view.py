@@ -1,14 +1,22 @@
 """Vista visual de usuarios."""
 
+from collections.abc import Callable
+
 import flet as ft
 
+from components.modals import UserFormDialog
 from config import PALETTE as COLORS
 
 
 class UsersView(ft.Container):
     """Listado de usuarios con acciones de alta e importación."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        on_user_submit: Callable[[dict[str, str]], None] | None = None,
+    ) -> None:
+        self.on_user_submit = on_user_submit
         self.header = self._header()
         super().__init__(
             expand=True,
@@ -35,10 +43,36 @@ class UsersView(ft.Container):
                     expand=True,
                 ),
                 ft.OutlinedButton("Importar Usuarios", icon=ft.Icons.UPLOAD_FILE),
-                ft.ElevatedButton("Nuevo Usuario", icon=ft.Icons.PERSON_ADD),
+                ft.ElevatedButton(
+                    "Nuevo Usuario",
+                    icon=ft.Icons.PERSON_ADD,
+                    on_click=self._open_user_dialog,
+                ),
             ],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
+
+    def _open_user_dialog(self, event: ft.ControlEvent) -> None:
+        """Abre el formulario modal usando la página asociada al evento."""
+        dialog = UserFormDialog(
+            on_submit=lambda data: self._submit_user(event.page, dialog, data),
+            on_cancel=lambda: self._close_dialog(event.page, dialog),
+        )
+        event.page.show_dialog(dialog)
+
+    def _submit_user(
+        self,
+        page: ft.Page,
+        dialog: UserFormDialog,
+        data: dict[str, str],
+    ) -> None:
+        if self.on_user_submit is not None:
+            self.on_user_submit(data)
+        self._close_dialog(page, dialog)
+
+    @staticmethod
+    def _close_dialog(page: ft.Page, dialog: UserFormDialog) -> None:
+        page.pop_dialog()
 
     def _filters(self) -> ft.Row:
         return ft.Row(
