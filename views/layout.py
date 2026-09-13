@@ -1,6 +1,12 @@
 from collections.abc import Callable
 
 import flet as ft
+from config import PALETTE as COLORS
+from config import VALID_ROUTES
+from views.books_view import BooksView
+from views.dashboard_view import DashboardHeader
+from views.loans_view import LoansView
+from views.users_view import UsersView
 
 
 class SidebarItem(ft.Container):
@@ -35,13 +41,13 @@ class SidebarItem(ft.Container):
                     size=20,
                     color=ft.Colors.BLUE_GREY_700
                     if not self._selected
-                    else ft.Colors.BLUE_700,
+                    else COLORS.PRIMARY,
                 ),
                 ft.Text(
                     self._label,
                     size=14,
                     weight=ft.FontWeight.W_600 if self._selected else ft.FontWeight.W_400,
-                    color=ft.Colors.BLUE_GREY_900,
+                    color=COLORS.TEXT,
                 ),
             ],
             spacing=14,
@@ -49,7 +55,7 @@ class SidebarItem(ft.Container):
 
     def set_selected(self, selected: bool) -> None:
         self._selected = selected
-        self.bgcolor = ft.Colors.BLUE_50 if selected else None
+        self.bgcolor = COLORS.PRIMARY_LIGHT if selected else None
         self.content = self._build_content()
 
     def _handle_click(self, _: ft.ControlEvent) -> None:
@@ -72,7 +78,7 @@ class Sidebar(ft.Container):
         self._on_navigate = on_navigate
         super().__init__(
             width=248,
-            bgcolor=ft.Colors.WHITE,
+            bgcolor=COLORS.SURFACE,
             padding=ft.Padding.all(18),
             content=self._build_content(),
         )
@@ -89,12 +95,12 @@ class Sidebar(ft.Container):
                         ft.Container(
                             content=ft.Icon(
                                 ft.Icons.LOCAL_LIBRARY_OUTLINED,
-                                color=ft.Colors.WHITE,
+                                color=COLORS.SURFACE,
                                 size=24,
                             ),
                             width=42,
                             height=42,
-                            bgcolor=ft.Colors.BLUE_700,
+                            bgcolor=COLORS.PRIMARY,
                             border_radius=12,
                             alignment=ft.Alignment(0, 0),
                         ),
@@ -104,12 +110,12 @@ class Sidebar(ft.Container):
                                     "BiblioGest",
                                     size=18,
                                     weight=ft.FontWeight.BOLD,
-                                    color=ft.Colors.BLUE_GREY_900,
+                                    color=COLORS.TEXT,
                                 ),
                                 ft.Text(
                                     "Gestión de biblioteca",
                                     size=11,
-                                    color=ft.Colors.BLUE_GREY_500,
+                                    color=COLORS.TEXT_MUTED,
                                 ),
                             ],
                             spacing=2,
@@ -140,12 +146,12 @@ class Sidebar(ft.Container):
                                     "Administrador",
                                     size=13,
                                     weight=ft.FontWeight.W_600,
-                                    color=ft.Colors.BLUE_GREY_900,
+                                    color=COLORS.TEXT,
                                 ),
                                 ft.Text(
                                     "Sesión activa",
                                     size=11,
-                                    color=ft.Colors.BLUE_GREY_500,
+                                    color=COLORS.TEXT_MUTED,
                                 ),
                             ],
                             spacing=2,
@@ -199,7 +205,7 @@ class SummaryCard(ft.Container):
                         value,
                         size=28,
                         weight=ft.FontWeight.BOLD,
-                        color=ft.Colors.BLUE_GREY_900,
+                        color=COLORS.TEXT,
                     ),
                     ft.Text(detail, size=12, color=ft.Colors.BLUE_GREY_500),
                 ],
@@ -211,63 +217,61 @@ class SummaryCard(ft.Container):
 class ContentView(ft.Container):
     """Zona principal que renderiza el contenido asociado a cada ruta."""
 
-    TITLES = {
-        "/": ("Panel Principal", "Resumen general de la biblioteca"),
-        "/libros": ("Libros", "Consulta y organiza el catálogo"),
-        "/usuarios": ("Usuarios", "Administra los miembros registrados"),
-        "/prestamos": ("Préstamos", "Controla los préstamos activos"),
-        "/reportes": ("Reportes", "Indicadores y actividad reciente"),
-    }
-
     def __init__(self) -> None:
         self.current_route = "/"
         super().__init__(expand=True, padding=ft.Padding.all(30), content=self._build_content())
 
     def set_route(self, route: str) -> None:
-        self.current_route = route if route in self.TITLES else "/"
+        self.current_route = route if route in VALID_ROUTES else "/"
         self.content = self._build_content()
 
     def _build_content(self) -> ft.Column:
-        title, subtitle = self.TITLES[self.current_route]
         if self.current_route == "/":
+            header = DashboardHeader()
             body = self._dashboard_body()
+        elif self.current_route == "/libros":
+            view = BooksView()
+            header = view.header
+            body = view
+        elif self.current_route == "/usuarios":
+            view = UsersView()
+            header = view.header
+            body = view
+        elif self.current_route == "/prestamos":
+            view = LoansView()
+            header = view.header
+            body = view
         else:
-            body = self._placeholder_body(title)
+            header = ft.Column()
+            body = self._placeholder_body()
 
         return ft.Column(
             controls=[
                 ft.Row(
                     controls=[
-                        ft.Column(
-                            controls=[
-                                ft.Text(
-                                    title,
-                                    size=28,
-                                    weight=ft.FontWeight.BOLD,
-                                    color=ft.Colors.BLUE_GREY_900,
-                                ),
-                                ft.Text(subtitle, size=14, color=ft.Colors.BLUE_GREY_500),
-                            ],
-                            spacing=5,
-                            expand=True,
-                        ),
+                        header,
+                        self._dashboard_actions()
+                        if self.current_route == "/"
+                        else ft.Container(),
+                        ft.Container(expand=True),
                         ft.IconButton(
                             icon=ft.Icons.NOTIFICATIONS_NONE_OUTLINED,
-                            icon_color=ft.Colors.BLUE_GREY_600,
+                            icon_color=COLORS.TEXT_SUBTLE,
                             tooltip="Notificaciones",
                         ),
                         ft.IconButton(
                             icon=ft.Icons.HELP_OUTLINE,
-                            icon_color=ft.Colors.BLUE_GREY_600,
+                            icon_color=COLORS.TEXT_SUBTLE,
                             tooltip="Ayuda",
                         ),
                     ],
-                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    alignment=ft.MainAxisAlignment.END,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=8,
                 ),
-                ft.Divider(height=28, color=ft.Colors.TRANSPARENT),
-                body,
+                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+                ft.Container(content=body, expand=True),
             ],
-            scroll=ft.ScrollMode.AUTO,
             expand=True,
         )
 
@@ -281,21 +285,21 @@ class ContentView(ft.Container):
                             "1,248",
                             "+12 este mes",
                             ft.Icons.MENU_BOOK_OUTLINED,
-                            ft.Colors.BLUE_700,
+                            COLORS.PRIMARY,
                         ),
                         SummaryCard(
                             "Usuarios activos",
                             "356",
                             "+8 esta semana",
                             ft.Icons.GROUP_OUTLINED,
-                            ft.Colors.TEAL_600,
+                            COLORS.SECONDARY,
                         ),
                         SummaryCard(
                             "Préstamos activos",
                             "84",
                             "6 vencen pronto",
                             ft.Icons.SWAP_HORIZ_OUTLINED,
-                            ft.Colors.ORANGE_700,
+                            COLORS.WARNING,
                         ),
                     ],
                     spacing=16,
@@ -311,13 +315,24 @@ class ContentView(ft.Container):
                 ),
             ],
             spacing=16,
+            scroll=ft.ScrollMode.AUTO,
+        )
+
+    @staticmethod
+    def _dashboard_actions() -> ft.Row:
+        return ft.Row(
+            controls=[
+                ft.OutlinedButton("Registrar préstamo", icon=ft.Icons.SWAP_HORIZ_OUTLINED),
+                ft.ElevatedButton("Añadir libro", icon=ft.Icons.MENU_BOOK_OUTLINED),
+            ],
+            spacing=8,
         )
 
     def _activity_panel(self) -> ft.Container:
         activities = [
-            ("El principito", "María González", "Hoy, 10:42", ft.Colors.BLUE_700),
-            ("Cien años de soledad", "Carlos Rodríguez", "Ayer, 16:18", ft.Colors.TEAL_600),
-            ("Hábitos atómicos", "Ana Martínez", "Ayer, 11:05", ft.Colors.ORANGE_700),
+            ("El principito", "María González", "Hoy, 10:42", COLORS.PRIMARY),
+            ("Cien años de soledad", "Carlos Rodríguez", "Ayer, 16:18", COLORS.SECONDARY),
+            ("Hábitos atómicos", "Ana Martínez", "Ayer, 11:05", COLORS.WARNING),
         ]
         rows = [
             ft.Row(
@@ -340,7 +355,7 @@ class ContentView(ft.Container):
         return ft.Container(
             expand=2,
             padding=20,
-            bgcolor=ft.Colors.WHITE,
+            bgcolor=COLORS.SURFACE,
             border_radius=12,
             border=ft.Border.all(1, ft.Colors.BLUE_GREY_100),
             content=ft.Column(
@@ -358,7 +373,7 @@ class ContentView(ft.Container):
         return ft.Container(
             expand=1,
             padding=20,
-            bgcolor=ft.Colors.BLUE_700,
+            bgcolor=COLORS.PRIMARY,
             border_radius=12,
             content=ft.Column(
                 controls=[
@@ -395,7 +410,7 @@ class ContentView(ft.Container):
             ),
         )
 
-    def _placeholder_body(self, title: str) -> ft.Control:
+    def _placeholder_body(self) -> ft.Control:
         return ft.Container(
             expand=True,
             padding=40,
@@ -403,7 +418,7 @@ class ContentView(ft.Container):
             content=ft.Column(
                 controls=[
                     ft.Icon(ft.Icons.CONSTRUCTION_OUTLINED, size=48, color=ft.Colors.BLUE_300),
-                    ft.Text(f"Vista de {title}", size=20, weight=ft.FontWeight.BOLD),
+                    ft.Text("Vista en construcción", size=20, weight=ft.FontWeight.BOLD),
                     ft.Text(
                         "La estructura visual está lista para conectar sus controles.",
                         size=14,
@@ -424,7 +439,7 @@ class LibraryLayout(ft.Container):
         self.sidebar = Sidebar(on_navigate)
         super().__init__(
             expand=True,
-            bgcolor=ft.Colors.BLUE_GREY_50,
+            bgcolor=COLORS.BACKGROUND,
             content=ft.Row(
                 controls=[
                     self.sidebar,
@@ -438,7 +453,7 @@ class LibraryLayout(ft.Container):
                                     weight=ft.FontWeight.W_600,
                                     color=ft.Colors.BLUE_GREY_800,
                                 ),
-                                bgcolor=ft.Colors.WHITE,
+                                bgcolor=COLORS.SURFACE,
                                 elevation=0,
                                 toolbar_height=64,
                             ),

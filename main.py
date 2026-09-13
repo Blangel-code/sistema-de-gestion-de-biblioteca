@@ -1,5 +1,6 @@
 import flet as ft
 
+from config import PALETTE as COLORS
 from views.layout import LibraryLayout
 
 
@@ -10,12 +11,12 @@ def build_theme() -> ft.Theme:
     """Tema claro base de la aplicación."""
     return ft.Theme(
         color_scheme=ft.ColorScheme(
-            primary=ft.Colors.BLUE_700,
+            primary=COLORS.PRIMARY,
             on_primary=ft.Colors.WHITE,
-            secondary=ft.Colors.TEAL_600,
+            secondary=COLORS.SECONDARY,
             on_secondary=ft.Colors.WHITE,
-            surface=ft.Colors.WHITE,
-            on_surface=ft.Colors.BLUE_GREY_900,
+            surface=COLORS.SURFACE,
+            on_surface=COLORS.TEXT,
         ),
         font_family="Segoe UI",
         visual_density=ft.VisualDensity.COMFORTABLE,
@@ -26,7 +27,7 @@ def main(page: ft.Page) -> None:
     page.title = PAGE_TITLE
     page.theme = build_theme()
     page.theme_mode = ft.ThemeMode.LIGHT
-    page.bgcolor = ft.Colors.BLUE_GREY_50
+    page.bgcolor = COLORS.BACKGROUND
     page.padding = 0
     page.window.min_width = 960
     page.window.min_height = 640
@@ -40,7 +41,7 @@ def main(page: ft.Page) -> None:
     page.on_route_change = handle_route_change
     page.on_resized = lambda _: page.update()
     page.add(layout)
-    page.go(page.route or "/")
+    page.push_route(page.route or "/")
 
 
 if __name__ == "__main__":
