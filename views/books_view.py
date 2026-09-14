@@ -75,7 +75,7 @@ class BooksView(ft.Container):
                     label="Categoría",
                     width=170,
                     options=[
-                        ft.dropdown.Option("Todas"),
+                        ft.dropdown.Option("Todas",style=ft.ButtonStyle(side=ft.BorderSide(color=COLORS.BORDER,width=2))),
                         ft.dropdown.Option("Ficción"),
                         ft.dropdown.Option("Historia"),
                         ft.dropdown.Option("Ciencia"),
@@ -100,11 +100,11 @@ class BooksView(ft.Container):
 
     def _table_card(self) -> ft.Card:
         books = [
-            ("9780156012195", "El principito", "Antoine de Saint-Exupéry", "Ficción", "Activo", "Una historia sobre la amistad, la responsabilidad y la mirada de la infancia."),
-            ("9780307474728", "Cien años de soledad", "Gabriel García Márquez", "Ficción", "Activo", "La saga de la familia Buendía a través de varias generaciones en Macondo."),
-            ("9780062316097", "Sapiens", "Yuval Noah Harari", "Historia", "Activo", "Un recorrido por la evolución de la humanidad y sus grandes transformaciones."),
-            ("9788498388278", "Breves respuestas...", "Stephen Hawking", "Ciencia", "Activo", "Reflexiones accesibles sobre el universo, el tiempo y el futuro de la humanidad."),
-            ("9780132350884", "Clean Code", "Robert C. Martin", "Tecnología", "Inactivo", "Principios prácticos para escribir código legible, mantenible y profesional."),
+            ("1001", "9780156012195", "El principito", "Antoine de Saint-Exupéry", "Ficción", "Activo", "Una historia sobre la amistad, la responsabilidad y la mirada de la infancia."),
+            ("1002", "9780307474728", "Cien años de soledad", "Gabriel García Márquez", "Ficción", "Activo", "La saga de la familia Buendía a través de varias generaciones en Macondo."),
+            ("1003", "9780062316097", "Sapiens", "Yuval Noah Harari", "Historia", "Activo", "Un recorrido por la evolución de la humanidad y sus grandes transformaciones."),
+            ("1004", "9788498388278", "Breves respuestas...", "Stephen Hawking", "Ciencia", "Activo", "Reflexiones accesibles sobre el universo, el tiempo y el futuro de la humanidad."),
+            ("1005", "9780132350884", "Clean Code", "Robert C. Martin", "Tecnología", "Inactivo", "Principios prácticos para escribir código legible, mantenible y profesional."),
         ]
 
         def _open_details_dialog(event: ft.ControlEvent, book: dict[str, str]) -> None:
@@ -123,7 +123,7 @@ class BooksView(ft.Container):
             event.page.show_dialog(dialog)
 
         rows = []
-        for isbn, title, author, category, status, description in books:
+        for book_id, isbn, title, author, category, status, description in books:
             book = {
                 "isbn": isbn,
                 "titulo": title,
@@ -138,6 +138,7 @@ class BooksView(ft.Container):
             rows.append(
                 ft.DataRow(
                     cells=[
+                        ft.DataCell(ft.Text(book_id, weight=ft.FontWeight.BOLD)),
                         ft.DataCell(ft.Text(isbn, weight=ft.FontWeight.BOLD)),
                         ft.DataCell(ft.Text(title)),
                         ft.DataCell(ft.Text(author)),
@@ -173,6 +174,7 @@ class BooksView(ft.Container):
 
         table = ft.DataTable(
             columns=[
+                ft.DataColumn(ft.Text("ID")),
                 ft.DataColumn(ft.Text("ISBN")),
                 ft.DataColumn(ft.Text("Título")),
                 ft.DataColumn(ft.Text("Autor")),
