@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 import flet as ft
 
-from components.modals import UserFormDialog
+from components.modals import UserDetailsDialog, UserFormDialog
 from config import PALETTE as COLORS
 
 
@@ -56,23 +56,18 @@ class UsersView(ft.Container):
         """Abre el formulario modal usando la página asociada al evento."""
         dialog = UserFormDialog(
             on_submit=lambda data: self._submit_user(event.page, dialog, data),
-            on_cancel=lambda: self._close_dialog(event.page, dialog),
+            on_cancel=event.page.pop_dialog,
         )
         event.page.show_dialog(dialog)
 
     def _submit_user(
         self,
         page: ft.Page,
-        dialog: UserFormDialog,
         data: dict[str, str],
     ) -> None:
         if self.on_user_submit is not None:
             self.on_user_submit(data)
-        self._close_dialog(page, dialog)
-
-    @staticmethod
-    def _close_dialog(page: ft.Page, dialog: UserFormDialog) -> None:
-        page.pop_dialog()
+        self._close_dialog(page)
 
     def _filters(self) -> ft.Row:
         return ft.Row(
@@ -104,27 +99,42 @@ class UsersView(ft.Container):
             ("U-003", "Ana Martínez", "ana@email.com", "555-0103", "Activo"),
             ("U-004", "Luis Herrera", "luis@email.com", "555-0104", "Inactivo"),
         ]
-        rows = [
-            ft.DataRow(
-                cells=[
-                    ft.DataCell(ft.Text(user_id, weight=ft.FontWeight.BOLD)),
-                    ft.DataCell(ft.Text(name)),
-                    ft.DataCell(ft.Text(email)),
-                    ft.DataCell(ft.Text(phone)),
-                    ft.DataCell(self._status_badge(status)),
-                    ft.DataCell(
-                        ft.Row(
-                            [
-                                ft.IconButton(ft.Icons.EDIT_OUTLINED, tooltip="Editar"),
-                                ft.IconButton(ft.Icons.VISIBILITY_OUTLINED, tooltip="Detalle"),
-                            ],
-                            spacing=0,
-                        )
-                    ),
-                ]
+        rows = []
+        for user_id, name, email, phone, status in users:
+            user = {
+                "id": user_id,
+                "nombre": name,
+                "correo": email,
+                "telefono": phone,
+                "estado": status,
+            }
+            rows.append(
+                ft.DataRow(
+                    cells=[
+                        ft.DataCell(ft.Text(user_id, weight=ft.FontWeight.BOLD)),
+                        ft.DataCell(ft.Text(name)),
+                        ft.DataCell(ft.Text(email)),
+                        ft.DataCell(ft.Text(phone)),
+                        ft.DataCell(self._status_badge(status)),
+                        ft.DataCell(
+                            ft.Row(
+                                [
+                                    ft.IconButton(ft.Icons.EDIT_OUTLINED, tooltip="Editar"),
+                                    ft.IconButton(
+                                        ft.Icons.VISIBILITY_OUTLINED,
+                                        tooltip="Detalle",
+                                        on_click=lambda event, selected_user=user: self._open_user_details(
+                                            event,
+                                            selected_user,
+                                        ),
+                                    ),
+                                ],
+                                spacing=0,
+                            )
+                        ),
+                    ]
+                )
             )
-            for user_id, name, email, phone, status in users
-        ]
         table = ft.DataTable(
             columns=[
                 ft.DataColumn(ft.Text("ID")),
@@ -150,6 +160,14 @@ class UsersView(ft.Container):
                 expand=True,
             ),
         )
+
+    @staticmethod
+    def _open_user_details(event: ft.ControlEvent, user: dict[str, str]) -> None:
+        dialog = UserDetailsDialog(
+            user=user,
+            on_close=event.page.pop_dialog,
+        )
+        event.page.show_dialog(dialog)
 
     @staticmethod
     def _status_badge(status: str) -> ft.Container:

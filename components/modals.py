@@ -71,6 +71,277 @@ class UserFormDialog(ft.AlertDialog):
             self.on_cancel()
 
 
+class BookFormDialog(ft.AlertDialog):
+    """Dialog para registrar o editar un libro."""
+
+    def __init__(
+        self,
+        *,
+        title: str = "Nuevo libro",
+        on_submit: Callable[[dict[str, str]], None] | None = None,
+        on_cancel: Callable[[], None] | None = None,
+    ) -> None:
+        self.on_submit = on_submit
+        self.on_cancel = on_cancel
+        self.isbn_field = ft.TextField(label="ISBN", expand=True)
+        self.title_field = ft.TextField(label="Título", expand=True)
+        self.author_field = ft.TextField(label="Autor", expand=True)
+        self.category_field = ft.TextField(label="Categoría", expand=True)
+        self.year_field = ft.TextField(
+            label="Año",
+            keyboard_type=ft.KeyboardType.NUMBER,
+            expand=True,
+        )
+        self.pages_field = ft.TextField(
+            label="Número de páginas",
+            keyboard_type=ft.KeyboardType.NUMBER,
+            expand=True,
+        )
+        self.publisher_field = ft.TextField(label="Editorial", expand=True)
+        self.description_field = ft.TextField(
+            label="Descripción",
+            multiline=True,
+            min_lines=2,
+            max_lines=3,
+            expand=True,
+        )
+        self.status_field = ft.Dropdown(
+            label="Estado",
+            value="Activo",
+            options=[
+                ft.dropdown.Option("Activo"),
+                ft.dropdown.Option("Inactivo"),
+            ],
+        )
+        super().__init__(
+            modal=True,
+            title=ft.Text(title, color=COLORS.TEXT, weight=ft.FontWeight.BOLD),
+            content=ft.Container(
+                width=520,
+                content=ft.Column(
+                    [
+                        ft.Row(
+                            [self.isbn_field, self.title_field],
+                            spacing=6,
+                            expand=True,
+                        ),
+                        ft.Row(
+                            [self.author_field, self.category_field],
+                            spacing=6,
+                            expand=True,
+                        ),
+                        ft.Row(
+                            [self.year_field, self.pages_field, self.publisher_field],
+                            spacing=6,
+                            expand=True,
+                        ),
+                        ft.Row(
+                            [self.description_field, self.status_field],
+                            spacing=6,
+                            vertical_alignment=ft.CrossAxisAlignment.START,
+                            expand=True,
+                        ),
+                    ],
+                    tight=True,
+                    spacing=6,
+                ),
+            ),
+            actions=[
+                ft.TextButton("Cancelar", on_click=self._cancel),
+                ft.ElevatedButton("Guardar libro", on_click=self._submit),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+    def _submit(self, _: ft.ControlEvent) -> None:
+        if self.on_submit is not None:
+            self.on_submit(
+                {
+                    "isbn": self.isbn_field.value or "",
+                    "titulo": self.title_field.value or "",
+                    "autor": self.author_field.value or "",
+                    "descripcion": self.description_field.value or "",
+                    "categoria": self.category_field.value or "",
+                    "anio": self.year_field.value or "",
+                    "paginas": self.pages_field.value or "",
+                    "editorial": self.publisher_field.value or "",
+                    "estado": self.status_field.value or "Activo",
+                }
+            )
+
+    def _cancel(self, _: ft.ControlEvent) -> None:
+        if self.on_cancel is not None:
+            self.on_cancel()
+
+
+class BookDetailsDialog(ft.AlertDialog):
+    """Dialog de solo lectura con la información completa de un libro."""
+
+    def __init__(
+        self,
+        *,
+        book: dict[str, str],
+        on_close: Callable[[], None] | None = None,
+    ) -> None:
+        self.on_close = on_close
+        super().__init__(
+            modal=True,
+            title=ft.Row(
+                [
+                    ft.Icon(ft.Icons.MENU_BOOK_OUTLINED, color=COLORS.PRIMARY),
+                    ft.Text("Información del libro", color=COLORS.TEXT, weight=ft.FontWeight.BOLD),
+                ],
+                spacing=10,
+            ),
+            content=ft.Container(
+                width=560,
+                content=ft.Column(
+                    [
+                        ft.Text(
+                            book.get("titulo", "Sin título"),
+                            size=22,
+                            weight=ft.FontWeight.BOLD,
+                            color=COLORS.TEXT,
+                        ),
+                        self._detail_row("ISBN", book.get("isbn", "-")),
+                        self._detail_row("Autor", book.get("autor", "-")),
+                        self._detail_row("Categoría", book.get("categoria", "-")),
+                        self._detail_row("Editorial", book.get("editorial", "-")),
+                        self._detail_row("Año de publicación", book.get("anio", "-")),
+                        self._detail_row("Páginas", book.get("paginas", "-")),
+                        ft.Divider(height=8),
+                        ft.Text("Descripción", weight=ft.FontWeight.BOLD, color=COLORS.TEXT),
+                        ft.Text(
+                            book.get("descripcion", "Sin descripción disponible."),
+                            color=COLORS.TEXT_MUTED,
+                        ),
+                        ft.Row(
+                            [
+                                ft.Text("Estado", weight=ft.FontWeight.BOLD, color=COLORS.TEXT),
+                                self._status_badge(book.get("estado", "Inactivo")),
+                            ],
+                            spacing=10,
+                        ),
+                    ],
+                    tight=True,
+                    spacing=12,
+                ),
+            ),
+            actions=[ft.TextButton("Cerrar", on_click=self._close)],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+    @staticmethod
+    def _detail_row(label: str, value: str) -> ft.Row:
+        return ft.Row(
+            [
+                ft.Text(f"{label}:", weight=ft.FontWeight.BOLD, width=150),
+                ft.Text(value, expand=True),
+            ],
+            spacing=10,
+        )
+
+    @staticmethod
+    def _status_badge(status: str) -> ft.Container:
+        active = status == "Activo"
+        return ft.Container(
+            content=ft.Text(
+                status,
+                size=12,
+                color=COLORS.SUCCESS if active else COLORS.DANGER,
+            ),
+            bgcolor=COLORS.SUCCESS_BG if active else COLORS.DANGER_BG,
+            border_radius=12,
+            padding=ft.Padding.symmetric(horizontal=10, vertical=4),
+        )
+
+    def _close(self, _: ft.ControlEvent) -> None:
+        if self.on_close is not None:
+            self.on_close()
+
+
+class UserDetailsDialog(ft.AlertDialog):
+    """Dialog de solo lectura con la información completa de un usuario."""
+
+    def __init__(
+        self,
+        *,
+        user: dict[str, str],
+        on_close: Callable[[], None] | None = None,
+    ) -> None:
+        self.on_close = on_close
+        super().__init__(
+            modal=True,
+            title=ft.Row(
+                [
+                    ft.Icon(ft.Icons.PERSON_OUTLINE, color=COLORS.PRIMARY),
+                    ft.Text(
+                        "Información del usuario",
+                        color=COLORS.TEXT,
+                        weight=ft.FontWeight.BOLD,
+                    ),
+                ],
+                spacing=10,
+            ),
+            content=ft.Container(
+                width=520,
+                content=ft.Column(
+                    [
+                        ft.Text(
+                            user.get("nombre", "Sin nombre"),
+                            size=22,
+                            weight=ft.FontWeight.BOLD,
+                            color=COLORS.TEXT,
+                        ),
+                        self._detail_row("ID", user.get("id", "-")),
+                        self._detail_row("Correo electrónico", user.get("correo", "-")),
+                        self._detail_row("Teléfono", user.get("telefono", "-")),
+                        ft.Divider(height=8),
+                        ft.Row(
+                            [
+                                ft.Text("Estado", weight=ft.FontWeight.BOLD, color=COLORS.TEXT),
+                                self._status_badge(user.get("estado", "Inactivo")),
+                            ],
+                            spacing=10,
+                        ),
+                    ],
+                    tight=True,
+                    spacing=12,
+                ),
+            ),
+            actions=[ft.TextButton("Cerrar", on_click=self._close)],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+    @staticmethod
+    def _detail_row(label: str, value: str) -> ft.Row:
+        return ft.Row(
+            [
+                ft.Text(f"{label}:", weight=ft.FontWeight.BOLD, width=170),
+                ft.Text(value, expand=True),
+            ],
+            spacing=10,
+        )
+
+    @staticmethod
+    def _status_badge(status: str) -> ft.Container:
+        active = status == "Activo"
+        return ft.Container(
+            content=ft.Text(
+                status,
+                size=12,
+                color=COLORS.SUCCESS if active else COLORS.DANGER,
+            ),
+            bgcolor=COLORS.SUCCESS_BG if active else COLORS.DANGER_BG,
+            border_radius=12,
+            padding=ft.Padding.symmetric(horizontal=10, vertical=4),
+        )
+
+    def _close(self, _: ft.ControlEvent) -> None:
+        if self.on_close is not None:
+            self.on_close()
+
+
 class DeleteConfirmationDialog(ft.AlertDialog):
     """Dialog de confirmación para eliminar un registro."""
 

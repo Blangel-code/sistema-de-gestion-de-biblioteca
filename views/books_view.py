@@ -2,6 +2,7 @@
 
 import flet as ft
 
+from components.modals import BookDetailsDialog, BookFormDialog, DeleteConfirmationDialog
 from config import PALETTE as COLORS
 
 
@@ -46,11 +47,25 @@ class BooksView(ft.Container):
                 ft.ElevatedButton(
                     "Añadir Libro",
                     icon=ft.Icons.ADD,
-                    on_click=lambda _: None,
+                    on_click=self._open_book_dialog,
                 ),
             ],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
+
+    def _open_book_dialog(self, event: ft.ControlEvent) -> None:
+        """Abre el formulario modal para registrar un libro."""
+        dialog = BookFormDialog(
+            on_submit=lambda data: self._submit_book(event.page, data),
+            on_cancel=event.page.pop_dialog,
+        )
+        event.page.show_dialog(dialog)
+
+    @staticmethod
+    def _submit_book(page: ft.Page, data: dict[str, str]) -> None:
+        """Cierra el formulario después de recibir los datos del libro."""
+        page.pop_dialog()
+        
 
     def _filters(self) -> ft.Row:
         return ft.Row(
@@ -85,33 +100,63 @@ class BooksView(ft.Container):
 
     def _table_card(self) -> ft.Card:
         books = [
-            ("1001", "El principito", "Antoine de Saint-Exupéry", "9780156012195", "Ficción", "Activo"),
-            ("1002", "Cien años de soledad", "Gabriel García Márquez", "9780307474728", "Ficción", "Activo"),
-            ("1003", "Sapiens", "Yuval Noah Harari", "9780062316097", "Historia", "Activo"),
-            ("1004", "Breves respuestas...", "Stephen Hawking", "9788498388278", "Ciencia", "Activo"),
-            ("1005", "Clean Code", "Robert C. Martin", "9780132350884", "Tecnología", "Inactivo"),
+            ("9780156012195", "El principito", "Antoine de Saint-Exupéry", "Ficción", "Activo", "Una historia sobre la amistad, la responsabilidad y la mirada de la infancia."),
+            ("9780307474728", "Cien años de soledad", "Gabriel García Márquez", "Ficción", "Activo", "La saga de la familia Buendía a través de varias generaciones en Macondo."),
+            ("9780062316097", "Sapiens", "Yuval Noah Harari", "Historia", "Activo", "Un recorrido por la evolución de la humanidad y sus grandes transformaciones."),
+            ("9788498388278", "Breves respuestas...", "Stephen Hawking", "Ciencia", "Activo", "Reflexiones accesibles sobre el universo, el tiempo y el futuro de la humanidad."),
+            ("9780132350884", "Clean Code", "Robert C. Martin", "Tecnología", "Inactivo", "Principios prácticos para escribir código legible, mantenible y profesional."),
         ]
 
+        def _open_details_dialog(event: ft.ControlEvent, book: dict[str, str]) -> None:
+            dialog = BookDetailsDialog(
+                book=book,
+                on_close=event.page.pop_dialog,
+            )
+            event.page.show_dialog(dialog)
+
+        def _open_delete_dialog(event:ft.ControlEvent) -> None:
+            """Abre el menú de confirmación para eliminar un registro de un libro"""
+            dialog = DeleteConfirmationDialog(
+                on_confirm=lambda:_delete_book(event.page),
+                on_cancel=event.page.pop_dialog,
+            )
+            event.page.show_dialog(dialog)
+
         rows = []
-        for book_id, title, author, isbn, category, status in books:
+        for isbn, title, author, category, status, description in books:
+            book = {
+                "isbn": isbn,
+                "titulo": title,
+                "autor": author,
+                "categoria": category,
+                "estado": status,
+                "descripcion": description,
+                "editorial": "Ediciones Horizonte",
+                "anio": "2021",
+                "paginas": "248",
+            }
             rows.append(
                 ft.DataRow(
                     cells=[
-                        ft.DataCell(ft.Text(book_id, weight=ft.FontWeight.BOLD)),
+                        ft.DataCell(ft.Text(isbn, weight=ft.FontWeight.BOLD)),
                         ft.DataCell(ft.Text(title)),
                         ft.DataCell(ft.Text(author)),
-                        ft.DataCell(ft.Text(isbn)),
                         ft.DataCell(ft.Text(category)),
                         ft.DataCell(self._status_badge(status)),
                         ft.DataCell(
                             ft.Row(
                                 controls=[
                                     ft.IconButton(ft.Icons.EDIT_OUTLINED, tooltip="Editar"),
-                                    ft.IconButton(ft.Icons.VISIBILITY_OUTLINED, tooltip="Detalle"),
+                                    ft.IconButton(
+                                        ft.Icons.VISIBILITY_OUTLINED,
+                                        tooltip="Detalle",
+                                        on_click=lambda event, selected_book=book: _open_details_dialog(event, selected_book),
+                                    ),
                                     ft.IconButton(
                                         ft.Icons.DELETE_OUTLINE,
                                         tooltip="Eliminar",
                                         icon_color=COLORS.DANGER,
+                                        on_click=_open_delete_dialog,
                                     ),
                                 ],
                                 spacing=0,
@@ -121,12 +166,16 @@ class BooksView(ft.Container):
                 )
             )
 
+        def _delete_book(page:ft.Page):
+            """Elimina un registro de un libro en la base de datos"""
+            page.pop_dialog(),
+            
+
         table = ft.DataTable(
             columns=[
-                ft.DataColumn(ft.Text("ID")),
+                ft.DataColumn(ft.Text("ISBN")),
                 ft.DataColumn(ft.Text("Título")),
                 ft.DataColumn(ft.Text("Autor")),
-                ft.DataColumn(ft.Text("ISBN")),
                 ft.DataColumn(ft.Text("Categoría")),
                 ft.DataColumn(ft.Text("Estado")),
                 ft.DataColumn(ft.Text("Acciones")),
