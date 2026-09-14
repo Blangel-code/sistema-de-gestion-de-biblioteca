@@ -41,7 +41,8 @@ def main(page: ft.Page) -> None:
     page.on_route_change = handle_route_change
     page.on_resized = lambda _: page.update()
     page.add(layout)
-    page.push_route(page.route or "/")
+    layout.set_route(page.route or "/")
+    page.update()
 
 
 if __name__ == "__main__":
