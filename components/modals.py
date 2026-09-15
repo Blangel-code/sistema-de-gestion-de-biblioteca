@@ -97,6 +97,12 @@ class BookFormDialog(ft.AlertDialog):
             keyboard_type=ft.KeyboardType.NUMBER,
             expand=True,
         )
+        self.available_field = ft.TextField(
+            label="Disponibles",
+            value="0",
+            keyboard_type=ft.KeyboardType.NUMBER,
+            expand=True,
+        )
         self.publisher_field = ft.TextField(label="Editorial", expand=True)
         self.description_field = ft.TextField(
             label="Descripción",
@@ -104,14 +110,6 @@ class BookFormDialog(ft.AlertDialog):
             min_lines=2,
             max_lines=3,
             expand=True,
-        )
-        self.status_field = ft.Dropdown(
-            label="Estado",
-            value="Activo",
-            options=[
-                ft.dropdown.Option("Activo"),
-                ft.dropdown.Option("Inactivo"),
-            ],
         )
         super().__init__(
             modal=True,
@@ -122,28 +120,24 @@ class BookFormDialog(ft.AlertDialog):
                     [
                         ft.Row(
                             [self.isbn_field, self.title_field],
-                            spacing=6,
-                            expand=True,
+                            spacing=12,
                         ),
                         ft.Row(
                             [self.author_field, self.category_field],
-                            spacing=6,
-                            expand=True,
+                            spacing=12,
                         ),
                         ft.Row(
                             [self.year_field, self.pages_field, self.publisher_field],
-                            spacing=6,
-                            expand=True,
+                            spacing=12,
                         ),
                         ft.Row(
-                            [self.description_field, self.status_field],
-                            spacing=6,
+                            [self.description_field, self.available_field],
+                            spacing=12,
                             vertical_alignment=ft.CrossAxisAlignment.START,
-                            expand=True,
                         ),
                     ],
                     tight=True,
-                    spacing=6,
+                    spacing=12,
                 ),
             ),
             actions=[
@@ -165,7 +159,7 @@ class BookFormDialog(ft.AlertDialog):
                     "anio": self.year_field.value or "",
                     "paginas": self.pages_field.value or "",
                     "editorial": self.publisher_field.value or "",
-                    "estado": self.status_field.value or "Activo",
+                    "disponibles": self.available_field.value or "0",
                 }
             )
 

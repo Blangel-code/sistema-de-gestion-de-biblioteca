@@ -1,5 +1,5 @@
 #Ignorando La Base De Datos De SQL
-datos.db
+data/datos.db
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

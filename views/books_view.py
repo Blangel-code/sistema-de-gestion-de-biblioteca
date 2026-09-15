@@ -4,7 +4,7 @@ import flet as ft
 
 from components.modals import BookDetailsDialog, BookFormDialog, DeleteConfirmationDialog
 from config import PALETTE as COLORS
-
+from querys import search_books, add_book, eliminate_book
 
 class BooksView(ft.Container):
     """Catálogo con búsqueda, filtros y acciones por libro."""
@@ -64,6 +64,7 @@ class BooksView(ft.Container):
     @staticmethod
     def _submit_book(page: ft.Page, data: dict[str, str]) -> None:
         """Cierra el formulario después de recibir los datos del libro."""
+        add_book(data)
         page.pop_dialog()
         
 
@@ -99,13 +100,8 @@ class BooksView(ft.Container):
         )
 
     def _table_card(self) -> ft.Card:
-        books = [
-            ("1001", "9780156012195", "El principito", "Antoine de Saint-Exupéry", "Ficción", "Activo", "Una historia sobre la amistad, la responsabilidad y la mirada de la infancia."),
-            ("1002", "9780307474728", "Cien años de soledad", "Gabriel García Márquez", "Ficción", "Activo", "La saga de la familia Buendía a través de varias generaciones en Macondo."),
-            ("1003", "9780062316097", "Sapiens", "Yuval Noah Harari", "Historia", "Activo", "Un recorrido por la evolución de la humanidad y sus grandes transformaciones."),
-            ("1004", "9788498388278", "Breves respuestas...", "Stephen Hawking", "Ciencia", "Activo", "Reflexiones accesibles sobre el universo, el tiempo y el futuro de la humanidad."),
-            ("1005", "9780132350884", "Clean Code", "Robert C. Martin", "Tecnología", "Inactivo", "Principios prácticos para escribir código legible, mantenible y profesional."),
-        ]
+        
+        books = search_books()
 
         def _open_details_dialog(event: ft.ControlEvent, book: dict[str, str]) -> None:
             dialog = BookDetailsDialog(
@@ -114,33 +110,35 @@ class BooksView(ft.Container):
             )
             event.page.show_dialog(dialog)
 
-        def _open_delete_dialog(event:ft.ControlEvent) -> None:
+        def _open_delete_dialog(event:ft.ControlEvent,delete_book: dict[str, str]) -> None:
             """Abre el menú de confirmación para eliminar un registro de un libro"""
             dialog = DeleteConfirmationDialog(
-                on_confirm=lambda:_delete_book(event.page),
+                item_name=delete_book["titulo"],
+                on_confirm=lambda:_delete_book(event.page,delete_book["book_id"]),
                 on_cancel=event.page.pop_dialog,
             )
             event.page.show_dialog(dialog)
 
         rows = []
-        for book_id, isbn, title, author, category, status, description in books:
+        for book_id, isbn, title, author, status, category, publisher, year, pages, description in books:
             book = {
+                "book_id" : book_id,
                 "isbn": isbn,
                 "titulo": title,
                 "autor": author,
                 "categoria": category,
                 "estado": status,
                 "descripcion": description,
-                "editorial": "Ediciones Horizonte",
-                "anio": "2021",
-                "paginas": "248",
+                "editorial": publisher,
+                "anio": year,
+                "paginas": pages,
             }
             rows.append(
                 ft.DataRow(
                     cells=[
-                        ft.DataCell(ft.Text(book_id, weight=ft.FontWeight.BOLD)),
+                        ft.DataCell(ft.Text(book_id, weight=ft.FontWeight.BOLD,)),
                         ft.DataCell(ft.Text(isbn, weight=ft.FontWeight.BOLD)),
-                        ft.DataCell(ft.Text(title)),
+                        ft.DataCell(ft.Text(title,no_wrap=True,width=200,overflow=ft.TextOverflow.ELLIPSIS)),
                         ft.DataCell(ft.Text(author)),
                         ft.DataCell(ft.Text(category)),
                         ft.DataCell(self._status_badge(status)),
@@ -157,18 +155,19 @@ class BooksView(ft.Container):
                                         ft.Icons.DELETE_OUTLINE,
                                         tooltip="Eliminar",
                                         icon_color=COLORS.DANGER,
-                                        on_click=_open_delete_dialog,
+                                        on_click=lambda event, delete_book=book: _open_delete_dialog(event,delete_book),
                                     ),
                                 ],
                                 spacing=0,
                             )
-                        ),
+                        )
                     ]
                 )
             )
 
-        def _delete_book(page:ft.Page):
+        def _delete_book(page:ft.Page,id_delete_book:int):
             """Elimina un registro de un libro en la base de datos"""
+            eliminate_book(id_delete_book)
             page.pop_dialog(),
             
 
