@@ -3,9 +3,9 @@
 import sqlite3
 from pathlib import Path
 
-PATH_DB =  Path(__file__).resolve().parent / "data" / "data.db"
+PATH_DB =  Path(__file__).resolve().parent.parent / "data" / "data.db"
 """Ruta De La Base De Datos SQLite"""
-PATH_DB.parent.mkdir(parents=True,exist_ok=True)
+PATH_DB.parent.parent.mkdir(parents=True,exist_ok=True)
 
 QUERY_SEARCH_BOOKS = "SELECT bookID,isbn,title,autor,CASE WHEN stock_available = 0 THEN 'Inactivo' ELSE 'Activo' END AS status,category,publisher,year,pages,description FROM Books"
 """Query Para Seleccionar la ID, Isbn, Título, Autor, Estado (Activo|Inactivo), Categoría, Editorial, Anio y Paginas De Todos Los Libros"""
@@ -93,11 +93,14 @@ def make_cursor(query:str,parameters:tuple = None,fetch:bool=False) -> bool|list
         finally:
             conn.close()
             
-def search_books():
+def search_books() -> list:
+    """Ejecuta Una Query Para Buscar Información De Los Libros Necesarias Para La Vista En Tabla y Detalles. Devuelve Una Lista Con Tuplas"""
     return make_cursor(QUERY_SEARCH_BOOKS,fetch=True)
 
-def add_book(data_book: dict[str, str]):
+def add_book(data_book: dict[str, str]) -> bool:
+    """Ejecuta Una Query Para Añadir Un Libro A La Base De Datos. Devuelve False Si Ocurrió Un Error o True Si Se Ejecutó Correctamente"""
     return make_cursor(QUERY_INSERT_BOOKS,tuple(data_book.values())+(data_book["disponibles"],))
 
-def eliminate_book(delete_book:int):
+def eliminate_book(delete_book:int) -> bool:
+    """Ejecuta Una Query Para Eliminar Un Libro De La Base De Datos. Devuelve False Si Ocurrió Un Error o True Si Se Ejecutó Correctamente"""
     return make_cursor(QUERY_DELETE_BOOKS,(delete_book,))

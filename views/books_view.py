@@ -4,7 +4,7 @@ import flet as ft
 
 from components.modals import BookDetailsDialog, BookFormDialog, DeleteConfirmationDialog
 from config import PALETTE as COLORS
-from querys import search_books, add_book, eliminate_book
+from data.querys import search_books, add_book, eliminate_book
 
 class BooksView(ft.Container):
     """Catálogo con búsqueda, filtros y acciones por libro."""
@@ -17,12 +17,14 @@ class BooksView(ft.Container):
             expand=True,
             border_radius=8,
         )
+        self.table_card = ft.Container(self._table_card(),expand=True)
+        
         super().__init__(
             expand=True,
             content=ft.Column(
                 controls=[
                     self._filters(),
-                    self._table_card(),
+                    self.table_card,
                 ],
                 spacing=16,
                 expand=True,
@@ -61,14 +63,25 @@ class BooksView(ft.Container):
         )
         event.page.show_dialog(dialog)
 
-    @staticmethod
-    def _submit_book(page: ft.Page, data: dict[str, str]) -> None:
+    def _refresh_table(self) -> None:
+        """Refresca La Tabla De Los Libros Cada Vez Que Se Llama"""
+        self.table_card.content = self._table_card()
+        self.table_card.update()
+
+    def _delete_book(self,page:ft.Page,id_delete_book:int) -> None:
+        """Elimina un registro de un libro en la base de datos"""
+        eliminate_book(id_delete_book)
+        self._refresh_table()
+        page.pop_dialog()
+
+    def _submit_book(self,page: ft.Page, data: dict[str, str]) -> None:
         """Cierra el formulario después de recibir los datos del libro."""
         add_book(data)
+        self._refresh_table()
         page.pop_dialog()
-        
 
     def _filters(self) -> ft.Row:
+        """Devuelve Los Filtros Disponibles. 2 Dropdown, Uno Para Seleccionar Categoría Y El Otro Para Seleccionar El Estado"""
         return ft.Row(
             controls=[
                 self.search_field,
@@ -100,10 +113,10 @@ class BooksView(ft.Container):
         )
 
     def _table_card(self) -> ft.Card:
-        
         books = search_books()
 
         def _open_details_dialog(event: ft.ControlEvent, book: dict[str, str]) -> None:
+            """Abre El Menú De Detalles Del Libro Correspondiente"""
             dialog = BookDetailsDialog(
                 book=book,
                 on_close=event.page.pop_dialog,
@@ -114,7 +127,7 @@ class BooksView(ft.Container):
             """Abre el menú de confirmación para eliminar un registro de un libro"""
             dialog = DeleteConfirmationDialog(
                 item_name=delete_book["titulo"],
-                on_confirm=lambda:_delete_book(event.page,delete_book["book_id"]),
+                on_confirm=lambda:self._delete_book(event.page,delete_book["book_id"]),
                 on_cancel=event.page.pop_dialog,
             )
             event.page.show_dialog(dialog)
@@ -164,12 +177,6 @@ class BooksView(ft.Container):
                     ]
                 )
             )
-
-        def _delete_book(page:ft.Page,id_delete_book:int):
-            """Elimina un registro de un libro en la base de datos"""
-            eliminate_book(id_delete_book)
-            page.pop_dialog(),
-            
 
         table = ft.DataTable(
             columns=[
