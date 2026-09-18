@@ -4,9 +4,9 @@ from collections.abc import Callable
 
 import flet as ft
 
-from components.modals import UserDetailsDialog, UserFormDialog
+from components.modals import UserDetailsDialog, UserFormDialog, DeleteConfirmationDialog
 from config import PALETTE as COLORS
-
+from querys import add_user, search_users
 
 class UsersView(ft.Container):
     """Listado de usuarios con acciones de alta e importación."""
@@ -42,7 +42,6 @@ class UsersView(ft.Container):
                     spacing=3,
                     expand=True,
                 ),
-                ft.OutlinedButton("Importar Usuarios", icon=ft.Icons.UPLOAD_FILE),
                 ft.ElevatedButton(
                     "Nuevo Usuario",
                     icon=ft.Icons.PERSON_ADD,
@@ -55,7 +54,7 @@ class UsersView(ft.Container):
     def _open_user_dialog(self, event: ft.ControlEvent) -> None:
         """Abre el formulario modal usando la página asociada al evento."""
         dialog = UserFormDialog(
-            on_submit=lambda data: self._submit_user(event.page, dialog, data),
+            on_submit=lambda data: self._submit_user(event.page, data),
             on_cancel=event.page.pop_dialog,
         )
         event.page.show_dialog(dialog)
@@ -67,7 +66,8 @@ class UsersView(ft.Container):
     ) -> None:
         if self.on_user_submit is not None:
             self.on_user_submit(data)
-        self._close_dialog(page)
+        add_user(data)
+        page.pop_dialog()
 
     def _filters(self) -> ft.Row:
         return ft.Row(
@@ -92,21 +92,41 @@ class UsersView(ft.Container):
             spacing=12,
         )
 
+    @staticmethod
+    def _open_user_details(event: ft.ControlEvent, user: dict[str, str]) -> None:
+        dialog = UserDetailsDialog(
+            user=user,
+            on_close=event.page.pop_dialog,
+        )
+        event.page.show_dialog(dialog)
+
+    def _open_delete_dialog(self,event:ft.ControlEvent,delete_user: dict[str, str]) -> None:
+        """Abre el menú de confirmación para eliminar un registro de un libro"""
+        dialog = DeleteConfirmationDialog(
+            item_name=delete_user["nombre"],
+            on_confirm=lambda:self._delete_user(event.page,delete_user["id"]),
+            on_cancel=event.page.pop_dialog,
+        )
+        event.page.show_dialog(dialog)
+        
+    def _delete_user(self,page:ft.Page,id_delete_book:int) -> None:
+        """Elimina el registro del usuario en la base de datos"""
+        #self._refresh_table()
+        page.pop_dialog()
+
     def _table_card(self) -> ft.Card:
-        users = [
-            ("U-001", "María González", "maria@email.com", "555-0101", "Activo"),
-            ("U-002", "Carlos Rodríguez", "carlos@email.com", "555-0102", "Activo"),
-            ("U-003", "Ana Martínez", "ana@email.com", "555-0103", "Activo"),
-            ("U-004", "Luis Herrera", "luis@email.com", "555-0104", "Inactivo"),
-        ]
+        users = search_users()
+        
         rows = []
-        for user_id, name, email, phone, status in users:
+        for user_id, name, email, phone, id_card, status, registration_date in users:
             user = {
                 "id": user_id,
                 "nombre": name,
                 "correo": email,
                 "telefono": phone,
+                "cedula": id_card,
                 "estado": status,
+                "fecha de registro": registration_date,
             }
             rows.append(
                 ft.DataRow(
@@ -115,6 +135,7 @@ class UsersView(ft.Container):
                         ft.DataCell(ft.Text(name)),
                         ft.DataCell(ft.Text(email)),
                         ft.DataCell(ft.Text(phone)),
+                        ft.DataCell(ft.Text(id_card)),
                         ft.DataCell(self._status_badge(status)),
                         ft.DataCell(
                             ft.Row(
@@ -127,6 +148,12 @@ class UsersView(ft.Container):
                                             event,
                                             selected_user,
                                         ),
+                                    ),
+                                    ft.IconButton(
+                                        ft.Icons.DELETE_OUTLINE,
+                                        tooltip="Eliminar",
+                                        icon_color=COLORS.DANGER,
+                                        on_click=lambda event, selected_user=user: self._open_delete_dialog(event,selected_user),
                                     ),
                                 ],
                                 spacing=0,
@@ -141,6 +168,7 @@ class UsersView(ft.Container):
                 ft.DataColumn(ft.Text("Nombre")),
                 ft.DataColumn(ft.Text("Correo electrónico")),
                 ft.DataColumn(ft.Text("Teléfono")),
+                ft.DataColumn(ft.Text("Cédula")),
                 ft.DataColumn(ft.Text("Estado")),
                 ft.DataColumn(ft.Text("Acciones")),
             ],
@@ -149,25 +177,24 @@ class UsersView(ft.Container):
             heading_row_color=COLORS.SURFACE_ALT,
             border=ft.Border.all(1, COLORS.BORDER),
             border_radius=8,
+            expand=True,
         )
         return ft.Card(
             elevation=0,
             expand=True,
             bgcolor=COLORS.SURFACE,
             content=ft.Container(
-                content=ft.Row([table], scroll=ft.ScrollMode.AUTO, expand=True),
+                content=ft.Column(
+                    controls=[
+                        ft.Row([table], scroll=ft.ScrollMode.AUTO),
+                    ],
+                    expand=True,
+                    scroll=ft.ScrollMode.AUTO,
+                ),
                 padding=8,
                 expand=True,
             ),
         )
-
-    @staticmethod
-    def _open_user_details(event: ft.ControlEvent, user: dict[str, str]) -> None:
-        dialog = UserDetailsDialog(
-            user=user,
-            on_close=event.page.pop_dialog,
-        )
-        event.page.show_dialog(dialog)
 
     @staticmethod
     def _status_badge(status: str) -> ft.Container:

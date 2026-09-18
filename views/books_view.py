@@ -4,7 +4,7 @@ import flet as ft
 
 from components.modals import BookDetailsDialog, BookFormDialog, DeleteConfirmationDialog
 from config import PALETTE as COLORS
-from data.querys import search_books, add_book, eliminate_book
+from querys import search_books, add_book, eliminate_book, search_filter_of_books
 
 class BooksView(ft.Container):
     """Catálogo con búsqueda, filtros y acciones por libro."""
@@ -16,9 +16,11 @@ class BooksView(ft.Container):
             prefix_icon=ft.Icons.SEARCH,
             expand=True,
             border_radius=8,
+            on_change=self._refresh_table
         )
-        self.table_card = ft.Container(self._table_card(),expand=True)
-        
+        self.category_dropdown = None
+        self.status_dropdown = None
+        self.table_card = ft.Container(self._table_card(), expand=True)
         super().__init__(
             expand=True,
             content=ft.Column(
@@ -28,6 +30,7 @@ class BooksView(ft.Container):
                 ],
                 spacing=16,
                 expand=True,
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             ),
         )
 
@@ -80,57 +83,59 @@ class BooksView(ft.Container):
         self._refresh_table()
         page.pop_dialog()
 
+    @staticmethod
+    def _open_details_dialog(event: ft.ControlEvent, book: dict[str, str]) -> None:
+        """Abre El Menú De Detalles Del Libro Correspondiente"""
+        dialog = BookDetailsDialog(
+            book=book,
+            on_close=event.page.pop_dialog,
+        )
+        event.page.show_dialog(dialog)
+
+    def _open_delete_dialog(self,event:ft.ControlEvent,delete_book: dict[str, str]) -> None:
+        """Abre el menú de confirmación para eliminar un registro de un libro"""
+        dialog = DeleteConfirmationDialog(
+            item_name=delete_book["titulo"],
+            on_confirm=lambda:self._delete_book(event.page,delete_book["book_id"]),
+            on_cancel=event.page.pop_dialog,
+        )
+        event.page.show_dialog(dialog)
+
     def _filters(self) -> ft.Row:
         """Devuelve Los Filtros Disponibles. 2 Dropdown, Uno Para Seleccionar Categoría Y El Otro Para Seleccionar El Estado"""
-        return ft.Row(
+        category_options = search_filter_of_books()
+        self.category_dropdown = ft.Dropdown(
+            label="Categoría",
+            width=170,
+            options=[
+                ft.dropdown.Option("Todas",style=ft.ButtonStyle(side=ft.BorderSide(color=COLORS.BORDER,width=2))),
+                *[ft.dropdown.Option(label,style=ft.ButtonStyle(side=ft.BorderSide(color=COLORS.BORDER,width=2))) for label in category_options]
+            ],
+            value="Todas",
+            on_select=self._refresh_table,
+        )
+        self.status_dropdown = ft.Dropdown(
+            label="Estado",
+            width=150,
+            options=[
+                ft.dropdown.Option("Todos"),
+                ft.dropdown.Option("Activo"),
+                ft.dropdown.Option("Inactivo"),
+            ],
+            value="Todos",
+            on_select=self._refresh_table,
+        )
+        return ft.ResponsiveRow(
             controls=[
-                self.search_field,
-                ft.Dropdown(
-                    label="Categoría",
-                    width=170,
-                    options=[
-                        ft.dropdown.Option("Todas",style=ft.ButtonStyle(side=ft.BorderSide(color=COLORS.BORDER,width=2))),
-                        ft.dropdown.Option("Ficción"),
-                        ft.dropdown.Option("Historia"),
-                        ft.dropdown.Option("Ciencia"),
-                        ft.dropdown.Option("Tecnología"),
-                    ],
-                    value="Todas",
-                ),
-                ft.Dropdown(
-                    label="Estado",
-                    width=150,
-                    options=[
-                        ft.dropdown.Option("Todos"),
-                        ft.dropdown.Option("Activo"),
-                        ft.dropdown.Option("Inactivo"),
-                    ],
-                    value="Todos",
-                ),
+                ft.Container(self.search_field, col={"xs": 12, "md": 8}),
+                ft.Container(self.category_dropdown, col={"xs": 6, "md": 2}),
+                ft.Container(self.status_dropdown, col={"xs": 6, "md": 2}),
             ],
             spacing=12,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
     def _table_card(self) -> ft.Card:
-        books = search_books()
-
-        def _open_details_dialog(event: ft.ControlEvent, book: dict[str, str]) -> None:
-            """Abre El Menú De Detalles Del Libro Correspondiente"""
-            dialog = BookDetailsDialog(
-                book=book,
-                on_close=event.page.pop_dialog,
-            )
-            event.page.show_dialog(dialog)
-
-        def _open_delete_dialog(event:ft.ControlEvent,delete_book: dict[str, str]) -> None:
-            """Abre el menú de confirmación para eliminar un registro de un libro"""
-            dialog = DeleteConfirmationDialog(
-                item_name=delete_book["titulo"],
-                on_confirm=lambda:self._delete_book(event.page,delete_book["book_id"]),
-                on_cancel=event.page.pop_dialog,
-            )
-            event.page.show_dialog(dialog)
+        books = search_books(self.status_dropdown.value if self.status_dropdown else None,self.category_dropdown.value if self.category_dropdown else None,self.search_field.value)
 
         rows = []
         for book_id, isbn, title, author, status, category, publisher, year, pages, description in books:
@@ -162,13 +167,13 @@ class BooksView(ft.Container):
                                     ft.IconButton(
                                         ft.Icons.VISIBILITY_OUTLINED,
                                         tooltip="Detalle",
-                                        on_click=lambda event, selected_book=book: _open_details_dialog(event, selected_book),
+                                        on_click=lambda event, selected_book=book: self._open_details_dialog(event, selected_book),
                                     ),
                                     ft.IconButton(
                                         ft.Icons.DELETE_OUTLINE,
                                         tooltip="Eliminar",
                                         icon_color=COLORS.DANGER,
-                                        on_click=lambda event, delete_book=book: _open_delete_dialog(event,delete_book),
+                                        on_click=lambda event, delete_book=book: self._open_delete_dialog(event,delete_book),
                                     ),
                                 ],
                                 spacing=0,
@@ -197,12 +202,17 @@ class BooksView(ft.Container):
         return ft.Card(
             elevation=0,
             bgcolor=COLORS.SURFACE,
-            content=ft.Container(
-                content=ft.Row([table], scroll=ft.ScrollMode.AUTO, expand=True),
-                padding=8,
-                expand=True,
-            ),
             expand=True,
+            content=ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Row([table], scroll=ft.ScrollMode.AUTO),
+                    ],
+                    expand=True,
+                    scroll=ft.ScrollMode.AUTO,
+                ),
+                padding=0,
+            ),
         )
 
     @staticmethod

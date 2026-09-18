@@ -3,6 +3,7 @@
 from collections.abc import Callable
 
 import flet as ft
+import re
 
 from config import PALETTE as COLORS
 
@@ -22,26 +23,16 @@ class UserFormDialog(ft.AlertDialog):
         self.name_field = ft.TextField(label="Nombre completo", autofocus=True)
         self.gmail_field = ft.TextField(label="Correo Electrónico")
         self.phone_field = ft.TextField(label="Teléfono")
-        self.role_field = ft.Dropdown(
-            label="Rol",
-            options=[
-                ft.dropdown.Option("Administrador"),
-                ft.dropdown.Option("Bibliotecario"),
-                ft.dropdown.Option("Lector"),
-            ],
-        )
-        self.year_field = ft.TextField(label="Año de registro", keyboard_type=ft.KeyboardType.NUMBER, hint_text="YYYY/MM/DD")
+        self.id_card_field = ft.TextField(label="Cédula De Identidad")
         super().__init__(
             modal=True,
             title=ft.Text(title, color=COLORS.TEXT, weight=ft.FontWeight.BOLD),
             content=ft.Container(
-                width=520,
+                width=620,
                 content=ft.Column(
                     [
-                        self.name_field,
-                        self.gmail_field,
-                        self.phone_field,
-                        ft.Row([self.role_field, self.year_field], spacing=12),
+                        ft.Row([self.name_field,self.gmail_field], spacing=12),
+                        ft.Row([self.phone_field,self.id_card_field], spacing=12),
                     ],
                     tight=True,
                     spacing=14,
@@ -55,14 +46,39 @@ class UserFormDialog(ft.AlertDialog):
         )
 
     def _submit(self, _: ft.ControlEvent) -> None:
+        fields = {
+            "name": self.name_field,
+            "email": self.gmail_field,
+            "phone": self.phone_field,
+            "id_card": self.id_card_field,
+        }
+        invalid_fields = []
+
+        for name, field in fields.items():
+            value = (field.value or "").strip()
+            field.error = None
+
+            if not value:
+                field.error = "Este campo es obligatorio."
+                invalid_fields.append(name)
+            elif name == "email" and not re.match(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",value):
+                field.error = "El Email Ingresado No Es Valido."
+                invalid_fields.append(name)
+            elif name == "id_card" and not value.isdigit():
+                field.error = "La Cédula Ingresada Solo Pueden Ser Números."
+                invalid_fields.append(name)
+
+        if invalid_fields:
+            self.update()
+            return
+
         if self.on_submit is not None:
             self.on_submit(
                 {
                     "nombre": self.name_field.value or "",
                     "gmail": self.gmail_field.value or "",
                     "telefono": self.phone_field.value or "",
-                    "role": self.role_field.value or "",
-                    "anio": self.year_field.value or "",
+                    "cedula": self.id_card_field.value or "",
                 }
             )
 
@@ -148,20 +164,190 @@ class BookFormDialog(ft.AlertDialog):
         )
 
     def _submit(self, _: ft.ControlEvent) -> None:
+        fields = {
+            "isbn": self.isbn_field,
+            "titulo": self.title_field,
+            "autor": self.author_field,
+            "descripcion": self.description_field,
+            "categoria": self.category_field,
+            "anio": self.year_field,
+            "paginas": self.pages_field,
+            "editorial": self.publisher_field,
+            "disponibles": self.available_field,
+        }
+        numeric_fields = {"anio", "paginas", "disponibles"}
+        invalid_fields = []
+
+        for name, field in fields.items():
+            value = (field.value or "").strip()
+            field.error = None
+
+            if not value and name != "disponibles":
+                field.error = "Este campo es obligatorio."
+                invalid_fields.append(name)
+            elif name in numeric_fields and not value.isdigit():
+                field.error = "Introduce un número entero."
+                invalid_fields.append(name)
+
+        if invalid_fields:
+            self.update()
+            return
+
         if self.on_submit is not None:
             self.on_submit(
                 {
-                    "isbn": self.isbn_field.value or "",
-                    "titulo": self.title_field.value or "",
-                    "autor": self.author_field.value or "",
-                    "descripcion": self.description_field.value or "",
-                    "categoria": self.category_field.value or "",
-                    "anio": self.year_field.value or "",
-                    "paginas": self.pages_field.value or "",
-                    "editorial": self.publisher_field.value or "",
-                    "disponibles": self.available_field.value or "0",
+                    "isbn": self.isbn_field.value.strip() or "",
+                    "titulo": self.title_field.value.strip() or "",
+                    "autor": self.author_field.value.strip() or "",
+                    "descripcion": self.description_field.value.strip() or "",
+                    "categoria": self.category_field.value.strip().title() or "",
+                    "anio": self.year_field.value.strip() or "",
+                    "paginas": self.pages_field.value.strip() or "",
+                    "editorial": self.publisher_field.value.strip() or "",
+                    "disponibles": self.available_field.value.strip() or "0",
                 }
             )
+
+    def _cancel(self, _: ft.ControlEvent) -> None:
+        if self.on_cancel is not None:
+            self.on_cancel()
+
+
+class LoanFormDialog(ft.AlertDialog):
+    """Dialog para registrar un préstamo."""
+
+    def __init__(
+        self,
+        *,
+        on_submit: Callable[[dict[str, str]], None] | None = None,
+        on_cancel: Callable[[], None] | None = None,
+    ) -> None:
+        self.on_submit = on_submit
+        self.on_cancel = on_cancel
+        self.user_field = ft.Dropdown(
+            label="Usuario",
+            hint_text="Selecciona un usuario",
+            options=[
+                ft.dropdown.Option("María González"),
+                ft.dropdown.Option("Carlos Rodríguez"),
+                ft.dropdown.Option("Ana Martínez"),
+            ],
+            expand=True,
+        )
+        self.book_field = ft.Dropdown(
+            label="Libro",
+            hint_text="Selecciona un libro",
+            options=[
+                ft.dropdown.Option("El principito"),
+                ft.dropdown.Option("Sapiens"),
+                ft.dropdown.Option("Clean Code"),
+            ],
+            expand=True,
+        )
+        self.return_date_field = ft.TextField(
+            label="Fecha de devolución",
+            hint_text="DD/MM/AAAA",
+            prefix_icon=ft.Icons.CALENDAR_TODAY,
+            expand=True,
+        )
+        super().__init__(
+            modal=True,
+            title=ft.Text("Registrar préstamo", color=COLORS.TEXT, weight=ft.FontWeight.BOLD),
+            content=ft.Container(
+                width=560,
+                content=ft.Column(
+                    [
+                        ft.Row(
+                            [self.user_field, self.book_field],
+                            spacing=12,
+                        ),
+                        self.return_date_field,
+                    ],
+                    tight=True,
+                    spacing=14,
+                ),
+            ),
+            actions=[
+                ft.TextButton("Cancelar", on_click=self._cancel),
+                ft.ElevatedButton("Registrar préstamo", icon=ft.Icons.ADD, on_click=self._submit),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+    def _submit(self, _: ft.ControlEvent) -> None:
+        if self.on_submit is not None:
+            self.on_submit(
+                {
+                    "usuario": self.user_field.value or "",
+                    "libro": self.book_field.value or "",
+                    "fecha_devolucion": self.return_date_field.value or "",
+                }
+            )
+
+    def _cancel(self, _: ft.ControlEvent) -> None:
+        if self.on_cancel is not None:
+            self.on_cancel()
+
+
+class ProcessLoanDialog(ft.AlertDialog):
+    """Dialog para procesar la devolución de un préstamo."""
+
+    def __init__(
+        self,
+        *,
+        loan: dict[str, str],
+        on_confirm: Callable[[], None] | None = None,
+        on_cancel: Callable[[], None] | None = None,
+    ) -> None:
+        self.on_confirm = on_confirm
+        self.on_cancel = on_cancel
+        super().__init__(
+            modal=True,
+            title=ft.Row(
+                [
+                    ft.Icon(ft.Icons.SWAP_HORIZ_OUTLINED, color=COLORS.PRIMARY),
+                    ft.Text("Procesar préstamo", color=COLORS.TEXT, weight=ft.FontWeight.BOLD),
+                ],
+                spacing=10,
+            ),
+            content=ft.Container(
+                width=460,
+                content=ft.Column(
+                    [
+                        ft.Text("Confirma la devolución de este registro:", color=COLORS.TEXT_MUTED),
+                        self._detail_row("ID", loan["id"]),
+                        self._detail_row("Usuario", loan["usuario"]),
+                        self._detail_row("Libro", loan["libro"]),
+                        self._detail_row("Fecha límite", loan["fecha_devolucion"]),
+                    ],
+                    tight=True,
+                    spacing=12,
+                ),
+            ),
+            actions=[
+                ft.TextButton("Cancelar", on_click=self._cancel),
+                ft.ElevatedButton(
+                    "Procesar devolución",
+                    icon=ft.Icons.CHECK,
+                    on_click=self._confirm,
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+    @staticmethod
+    def _detail_row(label: str, value: str) -> ft.Row:
+        return ft.Row(
+            [
+                ft.Text(f"{label}:", weight=ft.FontWeight.BOLD, width=130),
+                ft.Text(value, expand=True),
+            ],
+            spacing=10,
+        )
+
+    def _confirm(self, _: ft.ControlEvent) -> None:
+        if self.on_confirm is not None:
+            self.on_confirm()
 
     def _cancel(self, _: ft.ControlEvent) -> None:
         if self.on_cancel is not None:
@@ -290,7 +476,9 @@ class UserDetailsDialog(ft.AlertDialog):
                         self._detail_row("ID", user.get("id", "-")),
                         self._detail_row("Correo electrónico", user.get("correo", "-")),
                         self._detail_row("Teléfono", user.get("telefono", "-")),
+                        self._detail_row("Cédula", user.get("cedula", "-")),
                         ft.Divider(height=8),
+                        self._detail_row("Fecha De Registro", user.get("fecha de registro")),
                         ft.Row(
                             [
                                 ft.Text("Estado", weight=ft.FontWeight.BOLD, color=COLORS.TEXT),

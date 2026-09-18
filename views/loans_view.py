@@ -2,6 +2,7 @@
 
 import flet as ft
 
+from components.modals import LoanFormDialog, ProcessLoanDialog
 from config import PALETTE as COLORS
 
 
@@ -10,12 +11,20 @@ class LoansView(ft.Container):
 
     def __init__(self) -> None:
         self.header = self._header()
+        self.search_field = ft.TextField(
+            hint_text="Buscar por usuario, libro o ID",
+            prefix_icon=ft.Icons.SEARCH,
+            expand=True,
+            border_radius=8,
+            on_change=lambda _: self._refresh_table(),
+        )
+        self.table_card = ft.Container(self._active_loans_card(), expand=True)
         super().__init__(
             expand=True,
             content=ft.Column(
                 controls=[
-                    self._loan_form(),
-                    self._active_loans_card(),
+                    self._toolbar(),
+                    self.table_card,
                 ],
                 spacing=16,
                 expand=True,
@@ -35,60 +44,41 @@ class LoansView(ft.Container):
             spacing=3,
         )
 
-    def _loan_form(self) -> ft.Card:
-        return ft.Card(
-            elevation=0,
-            content=ft.Container(
-                padding=20,
-                content=ft.Column(
-                    [
-                        ft.Text("Registrar préstamo", size=17, weight=ft.FontWeight.BOLD),
-                        ft.Row(
-                            [
-                                ft.Dropdown(
-                                    label="Usuario",
-                                    hint_text="Selecciona un usuario",
-                                    options=[
-                                        ft.dropdown.Option("María González"),
-                                        ft.dropdown.Option("Carlos Rodríguez"),
-                                        ft.dropdown.Option("Ana Martínez"),
-                                    ],
-                                    expand=True,
-                                ),
-                                ft.Dropdown(
-                                    label="Libro",
-                                    hint_text="Selecciona un libro",
-                                    options=[
-                                        ft.dropdown.Option("El principito"),
-                                        ft.dropdown.Option("Sapiens"),
-                                        ft.dropdown.Option("Clean Code"),
-                                    ],
-                                    expand=True,
-                                ),
-                                ft.TextField(
-                                    label="Fecha de devolución",
-                                    hint_text="DD/MM/AAAA",
-                                    prefix_icon=ft.Icons.CALENDAR_TODAY,
-                                    expand=True,
-                                ),
-                            ],
-                            spacing=12,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                        ft.Row(
-                            [
-                                ft.Container(expand=True),
-                                ft.ElevatedButton(
-                                    "Registrar préstamo",
-                                    icon=ft.Icons.ADD,
-                                ),
-                            ]
-                        ),
-                    ],
-                    spacing=14,
+    def _toolbar(self) -> ft.Row:
+        return ft.Row(
+            controls=[
+                self.search_field,
+                ft.ElevatedButton(
+                    "Registrar préstamo",
+                    icon=ft.Icons.ADD,
+                    on_click=self._open_loan_dialog,
                 ),
-            ),
+            ],
+            spacing=12,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
+
+    def _open_loan_dialog(self, event: ft.ControlEvent) -> None:
+        dialog = LoanFormDialog(
+            on_submit=lambda data: self._submit_loan(event.page),
+            on_cancel=event.page.pop_dialog,
+        )
+        event.page.show_dialog(dialog)
+
+    def _submit_loan(self, page: ft.Page) -> None:
+        page.pop_dialog()
+
+    def _refresh_table(self) -> None:
+        self.table_card.content = self._active_loans_card()
+        self.table_card.update()
+
+    def _open_process_dialog(self, event: ft.ControlEvent, loan: dict[str, str]) -> None:
+        dialog = ProcessLoanDialog(
+            loan=loan,
+            on_confirm=event.page.pop_dialog,
+            on_cancel=event.page.pop_dialog,
+        )
+        event.page.show_dialog(dialog)
 
     def _active_loans_card(self) -> ft.Card:
         loans = [
@@ -123,6 +113,7 @@ class LoansView(ft.Container):
             heading_row_color=COLORS.SURFACE_ALT,
             border=ft.Border.all(1, COLORS.BORDER),
             border_radius=8,
+            expand=True,
         )
         return ft.Card(
             elevation=0,
@@ -133,7 +124,13 @@ class LoansView(ft.Container):
                 content=ft.Column(
                     [
                         ft.Text("Préstamos activos", size=17, weight=ft.FontWeight.BOLD),
-                        ft.Row([table], scroll=ft.ScrollMode.AUTO, expand=True),
+                        ft.Column(
+                            controls=[
+                                ft.Row([table], scroll=ft.ScrollMode.AUTO),
+                            ],
+                            expand=True,
+                            scroll=ft.ScrollMode.AUTO,
+                        ),
                     ],
                     spacing=12,
                     expand=True,
