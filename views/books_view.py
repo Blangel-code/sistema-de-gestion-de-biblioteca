@@ -19,7 +19,17 @@ class BooksView(ft.Container):
             on_change=self._refresh_table
         )
         self.category_dropdown = None
-        self.status_dropdown = None
+        self.status_dropdown = ft.Dropdown(
+                    label="Estado",
+                    width=150,
+                    options=[
+                        ft.dropdown.Option("Todos"),
+                        ft.dropdown.Option("Activo"),
+                        ft.dropdown.Option("Inactivo"),
+                    ],
+                    value="Todos",
+                    on_select=self._refresh_table,
+                )
         self.table_card = ft.Container(self._table_card(), expand=True)
         super().__init__(
             expand=True,
@@ -112,17 +122,6 @@ class BooksView(ft.Container):
                 *[ft.dropdown.Option(label,style=ft.ButtonStyle(side=ft.BorderSide(color=COLORS.BORDER,width=2))) for label in category_options]
             ],
             value="Todas",
-            on_select=self._refresh_table,
-        )
-        self.status_dropdown = ft.Dropdown(
-            label="Estado",
-            width=150,
-            options=[
-                ft.dropdown.Option("Todos"),
-                ft.dropdown.Option("Activo"),
-                ft.dropdown.Option("Inactivo"),
-            ],
-            value="Todos",
             on_select=self._refresh_table,
         )
         return ft.ResponsiveRow(

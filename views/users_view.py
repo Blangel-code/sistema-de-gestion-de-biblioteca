@@ -6,7 +6,7 @@ import flet as ft
 
 from components.modals import UserDetailsDialog, UserFormDialog, DeleteConfirmationDialog
 from config import PALETTE as COLORS
-from querys import add_user, search_users
+from querys import add_user, search_users, eliminate_user
 
 class UsersView(ft.Container):
     """Listado de usuarios con acciones de alta e importación."""
@@ -17,11 +17,30 @@ class UsersView(ft.Container):
         on_user_submit: Callable[[dict[str, str]], None] | None = None,
     ) -> None:
         self.on_user_submit = on_user_submit
+        self.status_dropdown = ft.Dropdown(
+            label="Estado",
+            width=160,
+            value="Todos",
+            options=[
+                ft.dropdown.Option("Todos"),
+                ft.dropdown.Option("Activo"),
+                ft.dropdown.Option("Inactivo"),
+            ],
+            on_select=self._refresh_table,
+        )
+        self.search_field = ft.TextField(
+            hint_text="Buscar usuario...",
+            prefix_icon=ft.Icons.SEARCH,
+            expand=True,
+            border_radius=8,
+            on_change=self._refresh_table,
+        )
         self.header = self._header()
+        self.table_card = ft.Container(self._table_card(), expand=True)
         super().__init__(
             expand=True,
             content=ft.Column(
-                controls=[self._filters(), self._table_card()],
+                controls=[self._filters(), self.table_card],
                 spacing=16,
                 expand=True,
             ),
@@ -67,30 +86,22 @@ class UsersView(ft.Container):
         if self.on_user_submit is not None:
             self.on_user_submit(data)
         add_user(data)
+        self._refresh_table()
         page.pop_dialog()
 
     def _filters(self) -> ft.Row:
         return ft.Row(
             controls=[
-                ft.TextField(
-                    hint_text="Buscar usuario...",
-                    prefix_icon=ft.Icons.SEARCH,
-                    expand=True,
-                    border_radius=8,
-                ),
-                ft.Dropdown(
-                    label="Estado",
-                    width=160,
-                    value="Todos",
-                    options=[
-                        ft.dropdown.Option("Todos"),
-                        ft.dropdown.Option("Activo"),
-                        ft.dropdown.Option("Inactivo"),
-                    ],
-                ),
+                self.search_field,
+                self.status_dropdown,
             ],
             spacing=12,
         )
+
+    def _refresh_table(self) -> None:
+        """Refresca La Tabla De Los Usuarios Cada Vez Que Se Llama"""
+        self.table_card.content = self._table_card()
+        self.table_card.update()
 
     @staticmethod
     def _open_user_details(event: ft.ControlEvent, user: dict[str, str]) -> None:
@@ -109,13 +120,14 @@ class UsersView(ft.Container):
         )
         event.page.show_dialog(dialog)
         
-    def _delete_user(self,page:ft.Page,id_delete_book:int) -> None:
+    def _delete_user(self,page:ft.Page,id_delete_user:int) -> None:
         """Elimina el registro del usuario en la base de datos"""
-        #self._refresh_table()
+        eliminate_user(id_delete_user)
+        self._refresh_table()
         page.pop_dialog()
 
     def _table_card(self) -> ft.Card:
-        users = search_users()
+        users = search_users(self.search_field.value,self.status_dropdown.value)
         
         rows = []
         for user_id, name, email, phone, id_card, status, registration_date in users:

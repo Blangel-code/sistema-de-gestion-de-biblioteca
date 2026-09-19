@@ -248,7 +248,6 @@ class LoanFormDialog(ft.AlertDialog):
             label="Fecha de devolución",
             hint_text="DD/MM/AAAA",
             prefix_icon=ft.Icons.CALENDAR_TODAY,
-            expand=True,
         )
         super().__init__(
             modal=True,
@@ -315,10 +314,10 @@ class ProcessLoanDialog(ft.AlertDialog):
                 content=ft.Column(
                     [
                         ft.Text("Confirma la devolución de este registro:", color=COLORS.TEXT_MUTED),
-                        self._detail_row("ID", loan["id"]),
-                        self._detail_row("Usuario", loan["usuario"]),
-                        self._detail_row("Libro", loan["libro"]),
-                        self._detail_row("Fecha límite", loan["fecha_devolucion"]),
+                        self._detail_row("ID", loan["prestamo_id"]),
+                        self._detail_row("Usuario", loan["nombre"]),
+                        self._detail_row("Libro", loan["titulo"]),
+                        self._detail_row("Fecha límite", loan["fecha_de_devolucion"]),
                     ],
                     tight=True,
                     spacing=12,

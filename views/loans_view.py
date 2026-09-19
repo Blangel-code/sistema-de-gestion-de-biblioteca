@@ -5,6 +5,7 @@ import flet as ft
 from components.modals import LoanFormDialog, ProcessLoanDialog
 from config import PALETTE as COLORS
 
+from querys import search_loans
 
 class LoansView(ft.Container):
     """Formulario de préstamo y listado de préstamos activos."""
@@ -81,24 +82,31 @@ class LoansView(ft.Container):
         event.page.show_dialog(dialog)
 
     def _active_loans_card(self) -> ft.Card:
-        loans = [
-            ("P-1001", "María González", "El principito", "12/09/2026", "20/09/2026"),
-            ("P-1002", "Carlos Rodríguez", "Sapiens", "10/09/2026", "18/09/2026"),
-            ("P-1003", "Ana Martínez", "Clean Code", "08/09/2026", "16/09/2026"),
-        ]
-        rows = [
-            ft.DataRow(
-                cells=[
-                    ft.DataCell(ft.Text(loan_id, weight=ft.FontWeight.BOLD)),
-                    ft.DataCell(ft.Text(user)),
-                    ft.DataCell(ft.Text(book)),
-                    ft.DataCell(ft.Text(loan_date)),
-                    ft.DataCell(ft.Text(return_date)),
-                    ft.DataCell(ft.OutlinedButton("Procesar devolución", icon=ft.Icons.CHECK)),
-                ]
+        loans = search_loans()
+        rows = []
+        for loan_id, name, card_id, title, status, loan_date, return_date in loans:
+            loan = {
+                "prestamo_id": loan_id,
+                "nombre": name,
+                "cedula": card_id,
+                "titulo": title,
+                "estado": status,
+                "fecha_de_prestamo": loan_date,
+                "fecha_de_devolucion": return_date,
+            }
+            rows.append(
+                ft.DataRow(
+                    cells=[
+                        ft.DataCell(ft.Text(loan_id, weight=ft.FontWeight.BOLD)),
+                        ft.DataCell(ft.Column([ft.Text(name),ft.Text(card_id, style=ft.TextStyle(italic=True))],spacing=0)),
+                        ft.DataCell(ft.Text(title)),
+                        ft.DataCell(ft.Text(loan_date)),
+                        ft.DataCell(ft.Text(return_date)),
+                        ft.DataCell(self._status_badge(status)),
+                        ft.DataCell(ft.OutlinedButton("Procesar devolución", on_click=lambda event, selected_loan=loan: self._open_process_dialog(event,selected_loan), icon=ft.Icons.CHECK)),
+                    ]
+                )
             )
-            for loan_id, user, book, loan_date, return_date in loans
-        ]
         table = ft.DataTable(
             columns=[
                 ft.DataColumn(ft.Text("ID")),
@@ -106,6 +114,7 @@ class LoansView(ft.Container):
                 ft.DataColumn(ft.Text("Libro")),
                 ft.DataColumn(ft.Text("Fecha préstamo")),
                 ft.DataColumn(ft.Text("Fecha devolución")),
+                ft.DataColumn(ft.Text("status")),
                 ft.DataColumn(ft.Text("Acción")),
             ],
             rows=rows,
@@ -136,4 +145,18 @@ class LoansView(ft.Container):
                     expand=True,
                 ),
             ),
+        )
+        
+    @staticmethod
+    def _status_badge(status: str) -> ft.Container:
+        active = status == "Activo"
+        return ft.Container(
+            content=ft.Text(
+                status,
+                size=12,
+                color=COLORS.SUCCESS if active else COLORS.DANGER,
+            ),
+            bgcolor=COLORS.SUCCESS_BG if active else COLORS.DANGER_BG,
+            border_radius=12,
+            padding=ft.Padding.symmetric(horizontal=10, vertical=4),
         )
