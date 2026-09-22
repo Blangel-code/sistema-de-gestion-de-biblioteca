@@ -5,7 +5,7 @@ import flet as ft
 from components.modals import LoanFormDialog, ProcessLoanDialog
 from config import PALETTE as COLORS
 
-from querys import search_loans
+from querys import search_loans, change_status_loan
 
 class LoansView(ft.Container):
     """Formulario de préstamo y listado de préstamos activos."""
@@ -17,7 +17,19 @@ class LoansView(ft.Container):
             prefix_icon=ft.Icons.SEARCH,
             expand=True,
             border_radius=8,
-            on_change=lambda _: self._refresh_table(),
+            on_change=self._refresh_table,
+        )
+        self.status_dropdown = ft.Dropdown(
+            label="Estado",
+            width=160,
+            value="Todos",
+            options=[
+                ft.dropdown.Option("Todos"),
+                ft.dropdown.Option("Activo"),
+                ft.dropdown.Option("Devuelto"),
+                ft.dropdown.Option("Retrasado"),
+            ],
+            on_select=self._refresh_table,
         )
         self.table_card = ft.Container(self._active_loans_card(), expand=True)
         super().__init__(
@@ -49,6 +61,7 @@ class LoansView(ft.Container):
         return ft.Row(
             controls=[
                 self.search_field,
+                self.status_dropdown,
                 ft.ElevatedButton(
                     "Registrar préstamo",
                     icon=ft.Icons.ADD,
@@ -76,13 +89,18 @@ class LoansView(ft.Container):
     def _open_process_dialog(self, event: ft.ControlEvent, loan: dict[str, str]) -> None:
         dialog = ProcessLoanDialog(
             loan=loan,
-            on_confirm=event.page.pop_dialog,
+            on_confirm=lambda: self._process_dialog(event.page,loan["prestamo_id"]),
             on_cancel=event.page.pop_dialog,
         )
         event.page.show_dialog(dialog)
 
+    def _process_dialog(self,page:ft.Page, loan_id_to_complete:int) -> None:
+        change_status_loan(loan_id_to_complete)
+        self._refresh_table()
+        page.pop_dialog()
+
     def _active_loans_card(self) -> ft.Card:
-        loans = search_loans()
+        loans = search_loans(self.search_field.value,self.status_dropdown.value)
         rows = []
         for loan_id, name, card_id, title, status, loan_date, return_date in loans:
             loan = {
@@ -103,7 +121,7 @@ class LoansView(ft.Container):
                         ft.DataCell(ft.Text(loan_date)),
                         ft.DataCell(ft.Text(return_date)),
                         ft.DataCell(self._status_badge(status)),
-                        ft.DataCell(ft.OutlinedButton("Procesar devolución", on_click=lambda event, selected_loan=loan: self._open_process_dialog(event,selected_loan), icon=ft.Icons.CHECK)),
+                        ft.DataCell(ft.OutlinedButton("Procesar devolución", on_click=lambda event, selected_loan=loan: self._open_process_dialog(event,selected_loan), icon=ft.Icons.CHECK), disabled=(status == "Devuelto")),
                     ]
                 )
             )
@@ -132,7 +150,6 @@ class LoansView(ft.Container):
                 padding=16,
                 content=ft.Column(
                     [
-                        ft.Text("Préstamos activos", size=17, weight=ft.FontWeight.BOLD),
                         ft.Column(
                             controls=[
                                 ft.Row([table], scroll=ft.ScrollMode.AUTO),

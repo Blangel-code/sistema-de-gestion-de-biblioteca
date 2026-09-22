@@ -2,12 +2,13 @@
 
 import sqlite3
 from pathlib import Path
+from typing import TypedDict
 
 PATH_DB =  Path(__file__).resolve().parent / "data" / "data.db"
 """Ruta De La Base De Datos SQLite"""
 PATH_DB.parent.mkdir(parents=True,exist_ok=True)
 
-QUERY_SEARCH_BOOKS = "SELECT bookID,isbn,title,autor,CASE WHEN stock_available = 0 THEN 'Inactivo' ELSE 'Activo' END AS status,category,publisher,year,pages,description FROM Books WHERE (status = ? OR ? IS NULL) AND (category = ? OR ? IS NULL) AND (title LIKE ? OR isbn LIKE ?)"
+QUERY_SEARCH_BOOKS = "SELECT bookID,isbn,title,autor,CASE WHEN stock_available = 0 THEN 'Inactivo' ELSE 'Activo' END AS status,category,publisher,year,pages,description FROM Books WHERE (status = ? OR ? IS NULL) AND (category = ? OR ? IS NULL) AND (title LIKE ? OR isbn LIKE ? OR autor LIKE ?)"
 """Query Para Seleccionar la ID, Isbn, Título, Autor, Estado (Activo|Inactivo), Categoría, Editorial, Anio y Paginas De Todos Los Libros"""
 
 QUERY_CREATE_TABLE = """CREATE TABLE IF NOT EXISTS "Books" (
@@ -67,12 +68,16 @@ QUERY_SEARCH_USERS = "SELECT userID,name,email,phone,id_card,state,registration_
 QUERY_DELETE_USERS = "DELETE FROM Users WHERE userID = ?"
 """Query Para Eliminar Un Usuario En La Base De Datos Mediante bookID"""
 
-QUERY_SEARCH_ORDERS = """SELECT o.OrderID, u.name, u.id_card, b.title, o.status, o.date_lending, o.date_return FROM Orders o
+QUERY_SEARCH_ORDERS = """SELECT o.orderID, u.name, u.id_card, b.title, o.status, o.date_lending, o.date_return FROM Orders o
 JOIN Users u ON o.userID = u.userID
-JOIN Books b ON o.bookID = b.bookID"""
+JOIN Books b ON o.bookID = b.bookID
+WHERE (u.name LIKE ? OR b.title LIKE ? OR o.orderID LIKE ?) AND (o.status = ? OR ? IS NULL)
+"""
 """Query Para Buscar Las Ordenes Existentes En La Tabla 'Orders' En La Base De Datos. Devuelve Los Valores Necesarios Para Mostrar De Manera Visual Mediante 2 Left Joins. Uno Que Une a Tabla Users Y El Otro Une A La Tabla Books.
 Returns:
 Devuelve Los Valores: OrderID, Nombre, Cedula, Titulo, Estado, Fecha De Prestamo, Fecha De Devolucion"""
+
+QUERY_LOANS_CHANGE_STATE = "UPDATE Orders SET status = 'Devuelto' WHERE orderID = ?"
 
 def make_cursor(query:str,parameters:tuple = None,fetch:bool=False) -> bool|list:
 
@@ -109,11 +114,12 @@ def make_cursor(query:str,parameters:tuple = None,fetch:bool=False) -> bool|list
         finally:
             conn.close()
             
-def search_books(status:str, category:str|None, title_or_isbn:str) -> list:
+def search_books(status:str, category:str|None, title_or_isbn_or_author:str) -> list:
     """Ejecuta Una Query Para Buscar Información De Los Libros Necesarias Para La Vista En Tabla y Detalles. Devuelve Una Lista"""
     status = None if status == "Todos" else status
     category = None if category == "Todas" else category
-    return make_cursor(QUERY_SEARCH_BOOKS,(status,status,category,category,f"%{title_or_isbn}%",f"%{title_or_isbn}%"),True)
+    value_for_search = f"%{title_or_isbn_or_author}%"
+    return make_cursor(QUERY_SEARCH_BOOKS,(status,status,category,category,value_for_search,value_for_search,value_for_search),True)
 
 def add_book(data_book: dict[str, str]) -> bool:
     """Ejecuta Una Query Para Añadir Un Libro A La Base De Datos. Devuelve False Si Ocurrió Un Error o True Si Se Ejecutó Correctamente"""
@@ -140,8 +146,85 @@ def eliminate_user(delete_user:int) -> bool:
     """Ejecuta Una Query Para Eliminar Un Libro De La Base De Datos. Devuelve False Si Ocurrió Un Error o True Si Se Ejecutó Correctamente"""
     return make_cursor(QUERY_DELETE_USERS,(delete_user,))
             
-def search_loans() -> list:
+def search_loans(name_or_title_or_id:str,status:str) -> list:
     """Ejecuta Una Query Para Buscar Las Ordenes Existentes. Devuelve Los Valores Necesarios Para Mostrar De Manera Visual
 Returns:
 Devuelve Los Valores: OrderID, Nombre, Cedula, Titulo, Estado, Fecha De Prestamo, Fecha De Devolucion"""
-    return make_cursor(QUERY_SEARCH_ORDERS,fetch=True)
+    value_for_search = f"%{name_or_title_or_id}%"
+    status = None if status == "Todos" else status
+    print(value_for_search)
+    return make_cursor(QUERY_SEARCH_ORDERS,(value_for_search,value_for_search,value_for_search,status,status),fetch=True)
+
+def change_status_loan(loan_id:int) -> None:
+    return make_cursor(QUERY_LOANS_CHANGE_STATE,(loan_id,))
+
+
+class ReportData(TypedDict):
+    """Contrato de datos que consume la vista de reportes."""
+
+    active_loans: int
+    overdue_loans: int
+    inventory_books: int
+    registered_users: int
+    top_books: list[tuple[str, int]]
+    categories: list[tuple[str, int]]
+    books_without_activity: list[tuple[str, str]]
+    monthly_history: list[tuple[str, int, int]]
+    returns_on_time: int
+    returns_late: int
+    top_readers: list[tuple[str, int]]
+    repeat_overdue_users: list[tuple[str, int, str]]
+
+
+def get_reports_data() -> ReportData:
+    """Devuelve datos de ejemplo para construir el módulo de reportes.
+
+    La función mantiene el contrato que después puede sustituirse por consultas
+    sobre Books, Users y Orders sin modificar la vista.
+    """
+    return {
+        "active_loans": 84,
+        "overdue_loans": 12,
+        "inventory_books": 1248,
+        "registered_users": 356,
+        "top_books": [
+            ("El principito", 38),
+            ("Cien años de soledad", 32),
+            ("Hábitos atómicos", 27),
+            ("Sapiens", 24),
+            ("Clean Code", 19),
+        ],
+        "categories": [
+            ("Novela", 42),
+            ("Tecnología", 24),
+            ("Historia", 18),
+            ("Desarrollo personal", 16),
+        ],
+        "books_without_activity": [
+            ("Introducción a la astronomía", "Ciencia"),
+            ("Atlas del mundo", "Geografía"),
+            ("Teoría del color", "Arte"),
+            ("Poesía reunida", "Poesía"),
+        ],
+        "monthly_history": [
+            ("Abr", 58, 44),
+            ("May", 66, 51),
+            ("Jun", 72, 60),
+            ("Jul", 81, 68),
+            ("Ago", 76, 70),
+            ("Sep", 92, 78),
+        ],
+        "returns_on_time": 86,
+        "returns_late": 14,
+        "top_readers": [
+            ("María González", 18),
+            ("Carlos Rodríguez", 15),
+            ("Ana Martínez", 12),
+            ("Luis Pérez", 10),
+        ],
+        "repeat_overdue_users": [
+            ("Jorge Ramírez", 4, "Hace 2 días"),
+            ("Sofía Torres", 3, "Hace 5 días"),
+            ("Diego Herrera", 2, "Hace 8 días"),
+        ],
+    }

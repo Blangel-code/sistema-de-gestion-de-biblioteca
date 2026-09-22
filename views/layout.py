@@ -6,6 +6,7 @@ from config import VALID_ROUTES
 from views.books_view import BooksView
 from views.dashboard_view import DashboardView
 from views.loans_view import LoansView
+from views.reports_view import ReportsView
 from views.users_view import UsersView
 
 
@@ -201,6 +202,10 @@ class ContentView(ft.Container):
             body = view
         elif self.current_route == "/prestamos":
             view = LoansView()
+            header = view.header
+            body = view
+        elif self.current_route == "/reportes":
+            view = ReportsView()
             header = view.header
             body = view
         else:
