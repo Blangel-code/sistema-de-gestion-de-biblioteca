@@ -5,7 +5,12 @@ import flet as ft
 from components.modals import LoanFormDialog, ProcessLoanDialog
 from config import PALETTE as COLORS
 
-from querys import search_loans, change_status_loan
+from querys import (
+    change_status_loan,
+    create_loan,
+    search_loans,
+    select_users_and_books_for_loans,
+)
 
 class LoansView(ft.Container):
     """Formulario de préstamo y listado de préstamos activos."""
@@ -62,7 +67,7 @@ class LoansView(ft.Container):
             controls=[
                 self.search_field,
                 self.status_dropdown,
-                ft.ElevatedButton(
+                ft.Button(
                     "Registrar préstamo",
                     icon=ft.Icons.ADD,
                     on_click=self._open_loan_dialog,
@@ -73,31 +78,47 @@ class LoansView(ft.Container):
         )
 
     def _open_loan_dialog(self, event: ft.ControlEvent) -> None:
-        dialog = LoanFormDialog(
-            on_submit=lambda data: self._submit_loan(event.page),
+        users, books = select_users_and_books_for_loans()
+        self.dialog = LoanFormDialog(
+            on_submit=lambda data: self._submit_loan(event.page, data),
             on_cancel=event.page.pop_dialog,
+            options_users=users,
+            options_books=books,
         )
-        event.page.show_dialog(dialog)
+        event.page.show_dialog(self.dialog)
 
-    def _submit_loan(self, page: ft.Page) -> None:
+    def _submit_loan(self, page: ft.Page, data: dict[str, str]) -> tuple[bool, str]:
+        success, msg = create_loan(
+            int(data["usuario"]),
+            int(data["libro"]),
+            data["fecha_devolucion"],
+        )
+        page.show_dialog(ft.SnackBar(msg))
+        if not success:
+            return
+        self.dialog.open = False
+        self._refresh_table()
         page.pop_dialog()
 
     def _refresh_table(self) -> None:
         self.table_card.content = self._active_loans_card()
-        self.table_card.update()
+        self.page.update()
 
     def _open_process_dialog(self, event: ft.ControlEvent, loan: dict[str, str]) -> None:
-        dialog = ProcessLoanDialog(
+        self.dialog_process = ProcessLoanDialog(
             loan=loan,
             on_confirm=lambda: self._process_dialog(event.page,loan["prestamo_id"]),
             on_cancel=event.page.pop_dialog,
         )
-        event.page.show_dialog(dialog)
+        event.page.show_dialog(self.dialog_process)
 
     def _process_dialog(self,page:ft.Page, loan_id_to_complete:int) -> None:
-        change_status_loan(loan_id_to_complete)
+        success, msg = change_status_loan(loan_id_to_complete)
+        if not success:
+            page.show_dialog(ft.SnackBar(msg))
+            return
+        self.dialog_process.open = False    
         self._refresh_table()
-        page.pop_dialog()
 
     def _active_loans_card(self) -> ft.Card:
         loans = search_loans(self.search_field.value,self.status_dropdown.value)

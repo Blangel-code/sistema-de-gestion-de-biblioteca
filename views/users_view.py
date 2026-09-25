@@ -6,7 +6,7 @@ import flet as ft
 
 from components.modals import UserDetailsDialog, UserFormDialog, DeleteConfirmationDialog
 from config import PALETTE as COLORS
-from querys import add_user, search_users, eliminate_user
+from querys import add_user, eliminate_user, search_users, update_user
 
 class UsersView(ft.Container):
     """Listado de usuarios con acciones de alta e importación."""
@@ -72,11 +72,11 @@ class UsersView(ft.Container):
 
     def _open_user_dialog(self, event: ft.ControlEvent) -> None:
         """Abre el formulario modal usando la página asociada al evento."""
-        dialog = UserFormDialog(
+        self.dialog = UserFormDialog(
             on_submit=lambda data: self._submit_user(event.page, data),
             on_cancel=event.page.pop_dialog,
         )
-        event.page.show_dialog(dialog)
+        event.page.show_dialog(self.dialog)
 
     def _submit_user(
         self,
@@ -85,9 +85,34 @@ class UsersView(ft.Container):
     ) -> None:
         if self.on_user_submit is not None:
             self.on_user_submit(data)
-        add_user(data)
+        success, msg = add_user(data)
+        page.show_dialog(ft.SnackBar(msg))
+        if not success:
+            return
+        self.dialog.open = False
         self._refresh_table()
-        page.pop_dialog()
+
+    def _open_edit_dialog(self, event: ft.ControlEvent, user: dict[str, str]) -> None:
+        self.dialog_edit = UserFormDialog(
+            title="Editar usuario",
+            initial_data=user,
+            on_submit=lambda data: self._submit_edit_user(event.page, user["id"], data),
+            on_cancel=event.page.pop_dialog,
+        )
+        event.page.show_dialog(self.dialog_edit)
+
+    def _submit_edit_user(
+        self,
+        page: ft.Page,
+        user_id: int,
+        data: dict[str, str],
+    ) -> None:
+        success, msg = update_user(user_id, data)
+        page.show_dialog(ft.SnackBar(msg))
+        if not success:
+            return
+        self.dialog_edit.open = False
+        self._refresh_table()
 
     def _filters(self) -> ft.Row:
         return ft.Row(
@@ -101,7 +126,7 @@ class UsersView(ft.Container):
     def _refresh_table(self) -> None:
         """Refresca La Tabla De Los Usuarios Cada Vez Que Se Llama"""
         self.table_card.content = self._table_card()
-        self.table_card.update()
+        self.page.update()
 
     @staticmethod
     def _open_user_details(event: ft.ControlEvent, user: dict[str, str]) -> None:
@@ -113,18 +138,21 @@ class UsersView(ft.Container):
 
     def _open_delete_dialog(self,event:ft.ControlEvent,delete_user: dict[str, str]) -> None:
         """Abre el menú de confirmación para eliminar un registro de un libro"""
-        dialog = DeleteConfirmationDialog(
+        self.dialog_delete = DeleteConfirmationDialog(
             item_name=delete_user["nombre"],
             on_confirm=lambda:self._delete_user(event.page,delete_user["id"]),
             on_cancel=event.page.pop_dialog,
         )
-        event.page.show_dialog(dialog)
+        event.page.show_dialog(self.dialog_delete)
         
     def _delete_user(self,page:ft.Page,id_delete_user:int) -> None:
         """Elimina el registro del usuario en la base de datos"""
-        eliminate_user(id_delete_user)
+        success, msg = eliminate_user(id_delete_user)
+        page.show_dialog(ft.SnackBar(msg))
+        if not success:
+            return
+        self.dialog_delete.open = False
         self._refresh_table()
-        page.pop_dialog()
 
     def _table_card(self) -> ft.Card:
         users = search_users(self.search_field.value,self.status_dropdown.value)
@@ -152,7 +180,14 @@ class UsersView(ft.Container):
                         ft.DataCell(
                             ft.Row(
                                 [
-                                    ft.IconButton(ft.Icons.EDIT_OUTLINED, tooltip="Editar"),
+                                    ft.IconButton(
+                                        ft.Icons.EDIT_OUTLINED,
+                                        tooltip="Editar",
+                                        on_click=lambda event, selected_user=user: self._open_edit_dialog(
+                                            event,
+                                            selected_user,
+                                        ),
+                                    ),
                                     ft.IconButton(
                                         ft.Icons.VISIBILITY_OUTLINED,
                                         tooltip="Detalle",

@@ -1,12 +1,12 @@
 """Diálogos y paneles flotantes reutilizables."""
 
 from collections.abc import Callable
+from datetime import date, datetime
 
 import flet as ft
 import re
 
 from config import PALETTE as COLORS
-
 
 class UserFormDialog(ft.AlertDialog):
     """Dialog para crear o editar un usuario."""
@@ -15,7 +15,8 @@ class UserFormDialog(ft.AlertDialog):
         self,
         *,
         title: str = "Nuevo usuario",
-        on_submit: Callable[[dict[str, str]], None] | None = None,
+        initial_data: dict[str, str] | None = None,
+        on_submit: Callable[[dict[str, str]], object] | None = None,
         on_cancel: Callable[[], None] | None = None,
     ) -> None:
         self.on_submit = on_submit
@@ -24,6 +25,11 @@ class UserFormDialog(ft.AlertDialog):
         self.gmail_field = ft.TextField(label="Correo Electrónico")
         self.phone_field = ft.TextField(label="Teléfono")
         self.id_card_field = ft.TextField(label="Cédula De Identidad")
+        initial_data = initial_data or {}
+        self.name_field.value = initial_data.get("nombre", "")
+        self.gmail_field.value = initial_data.get("correo", "")
+        self.phone_field.value = initial_data.get("telefono", "")
+        self.id_card_field.value = str(initial_data.get("cedula", ""))
         super().__init__(
             modal=True,
             title=ft.Text(title, color=COLORS.TEXT, weight=ft.FontWeight.BOLD),
@@ -40,7 +46,7 @@ class UserFormDialog(ft.AlertDialog):
             ),
             actions=[
                 ft.TextButton("Cancelar", on_click=self._cancel),
-                ft.ElevatedButton("Guardar usuario", on_click=self._submit),
+                ft.Button("Guardar usuario", on_click=self._submit),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
@@ -94,7 +100,8 @@ class BookFormDialog(ft.AlertDialog):
         self,
         *,
         title: str = "Nuevo libro",
-        on_submit: Callable[[dict[str, str]], None] | None = None,
+        initial_data: dict[str, str] | None = None,
+        on_submit: Callable[[dict[str, str]], object] | None = None,
         on_cancel: Callable[[], None] | None = None,
     ) -> None:
         self.on_submit = on_submit
@@ -114,7 +121,7 @@ class BookFormDialog(ft.AlertDialog):
             expand=True,
         )
         self.available_field = ft.TextField(
-            label="Disponibles",
+            label="Stock total",
             value="0",
             keyboard_type=ft.KeyboardType.NUMBER,
             expand=True,
@@ -127,6 +134,16 @@ class BookFormDialog(ft.AlertDialog):
             max_lines=3,
             expand=True,
         )
+        initial_data = initial_data or {}
+        self.isbn_field.value = str(initial_data.get("isbn", ""))
+        self.title_field.value = str(initial_data.get("titulo", ""))
+        self.author_field.value = str(initial_data.get("autor", ""))
+        self.category_field.value = str(initial_data.get("categoria", ""))
+        self.year_field.value = str(initial_data.get("anio", ""))
+        self.pages_field.value = str(initial_data.get("paginas", ""))
+        self.available_field.value = str(initial_data.get("disponibles", "0"))
+        self.publisher_field.value = str(initial_data.get("editorial", ""))
+        self.description_field.value = str(initial_data.get("descripcion", ""))
         super().__init__(
             modal=True,
             title=ft.Text(title, color=COLORS.TEXT, weight=ft.FontWeight.BOLD),
@@ -158,7 +175,7 @@ class BookFormDialog(ft.AlertDialog):
             ),
             actions=[
                 ft.TextButton("Cancelar", on_click=self._cancel),
-                ft.ElevatedButton("Guardar libro", on_click=self._submit),
+                ft.Button("Guardar libro", on_click=self._submit),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
@@ -219,18 +236,23 @@ class LoanFormDialog(ft.AlertDialog):
     def __init__(
         self,
         *,
-        on_submit: Callable[[dict[str, str]], None] | None = None,
+        on_submit: Callable[[dict[str, str]], object] | None = None,
         on_cancel: Callable[[], None] | None = None,
+        options_users: list,
+        options_books: list,
     ) -> None:
         self.on_submit = on_submit
         self.on_cancel = on_cancel
+        self.error_message = ft.Text(color=COLORS.DANGER, visible=False)
         self.user_field = ft.Dropdown(
             label="Usuario",
             hint_text="Selecciona un usuario",
             options=[
-                ft.dropdown.Option("María González"),
-                ft.dropdown.Option("Carlos Rodríguez"),
-                ft.dropdown.Option("Ana Martínez"),
+                ft.dropdown.Option(
+                    key=str(user_id),
+                    text=f"{name} ({id_card}) - {state}",
+                )
+                for user_id, name, id_card, state in options_users
             ],
             expand=True,
         )
@@ -238,15 +260,17 @@ class LoanFormDialog(ft.AlertDialog):
             label="Libro",
             hint_text="Selecciona un libro",
             options=[
-                ft.dropdown.Option("El principito"),
-                ft.dropdown.Option("Sapiens"),
-                ft.dropdown.Option("Clean Code"),
+                ft.dropdown.Option(
+                    key=str(book_id),
+                    text=f"{title} ({isbn}) - disponibles: {stock_available}",
+                )
+                for book_id, title, isbn, stock_available in options_books
             ],
             expand=True,
         )
         self.return_date_field = ft.TextField(
             label="Fecha de devolución",
-            hint_text="DD/MM/AAAA",
+            hint_text="AAAA-MM-DD",
             prefix_icon=ft.Icons.CALENDAR_TODAY,
         )
         super().__init__(
@@ -261,6 +285,7 @@ class LoanFormDialog(ft.AlertDialog):
                             spacing=12,
                         ),
                         self.return_date_field,
+                        self.error_message,
                     ],
                     tight=True,
                     spacing=14,
@@ -268,18 +293,42 @@ class LoanFormDialog(ft.AlertDialog):
             ),
             actions=[
                 ft.TextButton("Cancelar", on_click=self._cancel),
-                ft.ElevatedButton("Registrar préstamo", icon=ft.Icons.ADD, on_click=self._submit),
+                ft.Button("Registrar préstamo", icon=ft.Icons.ADD, on_click=self._submit),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
 
     def _submit(self, _: ft.ControlEvent) -> None:
-        if self.on_submit is not None:
+        error = False
+        self.user_field.error_text = None
+        self.book_field.error_text = None
+        self.error_message.visible = False
+        self.return_date_field.error = None
+        return_date = (self.return_date_field.value or "").strip()
+        if not self.user_field.value:
+            self.user_field.error_text = "Selecciona un usuario."
+            error = True
+
+        if not self.book_field.value:
+            self.book_field.error_text = "Selecciona un libro."
+            error = True
+            
+        try:
+            parsed_date = date.fromisoformat(return_date)
+        except ValueError:
+            self.return_date_field.error = "La fecha debe existir y tener el formato YYYY-MM-DD."
+            error = True
+
+        if not error and parsed_date < date.today():
+            self.return_date_field.error = "La fecha de devolución no puede ser anterior a hoy."
+            error = True
+
+        if self.on_submit is not None and not error:
             self.on_submit(
                 {
-                    "usuario": self.user_field.value or "",
-                    "libro": self.book_field.value or "",
-                    "fecha_devolucion": self.return_date_field.value or "",
+                    "usuario": self.user_field.value,
+                    "libro": self.book_field.value,
+                    "fecha_devolucion": return_date,
                 }
             )
 
@@ -325,7 +374,7 @@ class ProcessLoanDialog(ft.AlertDialog):
             ),
             actions=[
                 ft.TextButton("Cancelar", on_click=self._cancel),
-                ft.ElevatedButton(
+                ft.Button(
                     "Procesar devolución",
                     icon=ft.Icons.CHECK,
                     on_click=self._confirm,
@@ -389,6 +438,7 @@ class BookDetailsDialog(ft.AlertDialog):
                         self._detail_row("Año de publicación", book.get("anio", "-")),
                         self._detail_row("Páginas", book.get("paginas", "-")),
                         ft.Divider(height=8),
+                        self._detail_row("Libros Disponibles", f"{book.get('disponibles', '-')}-{book.get('totales', '-')}"),
                         ft.Text("Descripción", weight=ft.FontWeight.BOLD, color=COLORS.TEXT),
                         ft.Text(
                             book.get("descripcion", "Sin descripción disponible."),
@@ -550,7 +600,7 @@ class DeleteConfirmationDialog(ft.AlertDialog):
             ),
             actions=[
                 ft.TextButton("Cancelar", on_click=self._cancel),
-                ft.ElevatedButton(
+                ft.Button(
                     "Eliminar",
                     icon=ft.Icons.DELETE_OUTLINE,
                     bgcolor=COLORS.DANGER,
@@ -690,7 +740,7 @@ class AdvancedFilterDialog(ft.AlertDialog):
             ),
             actions=[
                 ft.TextButton("Cancelar", on_click=self._cancel),
-                ft.ElevatedButton("Aplicar filtros", on_click=self._apply),
+                ft.Button("Aplicar filtros", on_click=self._apply),
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )

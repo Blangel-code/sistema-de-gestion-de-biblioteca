@@ -4,7 +4,13 @@ import flet as ft
 
 from components.modals import BookDetailsDialog, BookFormDialog, DeleteConfirmationDialog
 from config import PALETTE as COLORS
-from querys import search_books, add_book, eliminate_book, search_filter_of_books
+from querys import (
+    add_book,
+    eliminate_book,
+    search_books,
+    search_filter_of_books,
+    update_book,
+)
 
 class BooksView(ft.Container):
     """Catálogo con búsqueda, filtros y acciones por libro."""
@@ -70,28 +76,59 @@ class BooksView(ft.Container):
 
     def _open_book_dialog(self, event: ft.ControlEvent) -> None:
         """Abre el formulario modal para registrar un libro."""
-        dialog = BookFormDialog(
+        self.dialog = BookFormDialog(
             on_submit=lambda data: self._submit_book(event.page, data),
             on_cancel=event.page.pop_dialog,
         )
-        event.page.show_dialog(dialog)
+        event.page.show_dialog(self.dialog)
 
     def _refresh_table(self) -> None:
         """Refresca La Tabla De Los Libros Cada Vez Que Se Llama"""
         self.table_card.content = self._table_card()
-        self.table_card.update()
+        self.page.update()
 
     def _delete_book(self,page:ft.Page,id_delete_book:int) -> None:
         """Elimina un registro de un libro en la base de datos"""
-        eliminate_book(id_delete_book)
+        success, msg = eliminate_book(id_delete_book)
+        page.show_dialog(ft.SnackBar(msg))
+        if not success:
+            return
+        self.dialog_delete.open = False
         self._refresh_table()
         page.pop_dialog()
 
     def _submit_book(self,page: ft.Page, data: dict[str, str]) -> None:
         """Cierra el formulario después de recibir los datos del libro."""
-        add_book(data)
+        success, msg = add_book(data)
+        page.show_dialog(ft.SnackBar(msg))
+        if not success:
+            return
+        self.dialog.open = False
         self._refresh_table()
-        page.pop_dialog()
+
+    def _open_edit_dialog(self, event: ft.ControlEvent, book: dict[str, str]) -> None:
+        """Abre el formulario reutilizado para editar el libro seleccionado."""
+        self.dialog_edit = BookFormDialog(
+            title="Editar libro",
+            initial_data=book,
+            on_submit=lambda data: self._submit_edit_book(event.page, book["book_id"], data),
+            on_cancel=event.page.pop_dialog,
+        )
+        event.page.show_dialog(self.dialog_edit)
+
+    def _submit_edit_book(
+        self,
+        page: ft.Page,
+        book_id: int,
+        data: dict[str, str],
+    ) -> None:
+        """Guarda la edición validada y mantiene abierto el diálogo si falla."""
+        success, msg = update_book(book_id, data)
+        page.show_dialog(ft.SnackBar(msg))
+        if not success:
+            return
+        self.dialog_edit.open = False
+        self._refresh_table()
 
     @staticmethod
     def _open_details_dialog(event: ft.ControlEvent, book: dict[str, str]) -> None:
@@ -104,12 +141,12 @@ class BooksView(ft.Container):
 
     def _open_delete_dialog(self,event:ft.ControlEvent,delete_book: dict[str, str]) -> None:
         """Abre el menú de confirmación para eliminar un registro de un libro"""
-        dialog = DeleteConfirmationDialog(
+        self.dialog_delete = DeleteConfirmationDialog(
             item_name=delete_book["titulo"],
             on_confirm=lambda:self._delete_book(event.page,delete_book["book_id"]),
             on_cancel=event.page.pop_dialog,
         )
-        event.page.show_dialog(dialog)
+        event.page.show_dialog(self.dialog_delete)
 
     def _filters(self) -> ft.Row:
         """Devuelve Los Filtros Disponibles. 2 Dropdown, Uno Para Seleccionar Categoría Y El Otro Para Seleccionar El Estado"""
@@ -137,7 +174,7 @@ class BooksView(ft.Container):
         books = search_books(self.status_dropdown.value if self.status_dropdown else None,self.category_dropdown.value if self.category_dropdown else None,self.search_field.value)
 
         rows = []
-        for book_id, isbn, title, author, status, category, publisher, year, pages, description in books:
+        for book_id, isbn, title, author, status, category, publisher, year, pages, description, stock_total, stock_available in books:
             book = {
                 "book_id" : book_id,
                 "isbn": isbn,
@@ -149,6 +186,8 @@ class BooksView(ft.Container):
                 "editorial": publisher,
                 "anio": year,
                 "paginas": pages,
+                "totales": stock_total,
+                "disponibles": stock_available,
             }
             rows.append(
                 ft.DataRow(
@@ -162,7 +201,14 @@ class BooksView(ft.Container):
                         ft.DataCell(
                             ft.Row(
                                 controls=[
-                                    ft.IconButton(ft.Icons.EDIT_OUTLINED, tooltip="Editar"),
+                                    ft.IconButton(
+                                        ft.Icons.EDIT_OUTLINED,
+                                        tooltip="Editar",
+                                        on_click=lambda event, selected_book=book: self._open_edit_dialog(
+                                            event,
+                                            selected_book,
+                                        ),
+                                    ),
                                     ft.IconButton(
                                         ft.Icons.VISIBILITY_OUTLINED,
                                         tooltip="Detalle",
