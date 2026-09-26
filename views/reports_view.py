@@ -1,6 +1,8 @@
 """Vista de reportes y estadísticas de BiblioGest."""
 
 import csv
+from collections import Counter
+from datetime import date, timedelta
 from pathlib import Path
 
 import flet as ft
@@ -12,15 +14,19 @@ from reportlab.lib.units import mm
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from config import PALETTE as COLORS
-from querys import ReportData, get_reports_data
+from querys import ReportData, get_export_data
 
 
 class ReportsView(ft.Column):
-    """Dashboard de reportes alimentado por el contrato mock de ``querys``."""
+    """Dashboard de reportes alimentado por los datos actuales de ``querys``."""
 
     def __init__(self) -> None:
-        self.report_data: ReportData = get_reports_data()
         self.period = "Últimos 7 días"
+        today = date.today()
+        self.report_data: ReportData = self._report_data_for_range(
+            (today - timedelta(days=6)).isoformat(),
+            today.isoformat(),
+        )
         self.header = self._build_header()
         self.period_filter = ft.Dropdown(
             label="Rango de fechas",
@@ -33,6 +39,20 @@ class ReportsView(ft.Column):
                 ft.dropdown.Option("Personalizado"),
             ],
             on_select=self._change_period,
+        )
+        self.custom_start = ft.TextField(
+            label="Desde",
+            hint_text="AAAA-MM-DD",
+            width=130,
+            visible=False,
+            on_change=self._refresh_custom_period,
+        )
+        self.custom_end = ft.TextField(
+            label="Hasta",
+            hint_text="AAAA-MM-DD",
+            width=130,
+            visible=False,
+            on_change=self._refresh_custom_period,
         )
         self.export_menu = ft.PopupMenuButton(
             content="Exportar",
@@ -70,6 +90,8 @@ class ReportsView(ft.Column):
             [
                 ft.Container(expand=True),
                 self.period_filter,
+                self.custom_start,
+                self.custom_end,
                 self.export_menu,
             ],
             spacing=10,
@@ -85,7 +107,34 @@ class ReportsView(ft.Column):
 
     def _change_period(self, event: ft.ControlEvent) -> None:
         self.period = event.control.value or "Últimos 7 días"
+        custom = self.period == "Personalizado"
+        self.custom_start.visible = custom
+        self.custom_end.visible = custom
+        if not custom:
+            self._refresh_report_data(event.page)
+        event.page.update()
         self._show_message(event.page, f"Reporte actualizado: {self.period}")
+
+    def _refresh_custom_period(self, event: ft.ControlEvent) -> None:
+        if self.period != "Personalizado":
+            return
+        try:
+            self._refresh_report_data(event.page)
+        except ValueError:
+            return
+
+    def _refresh_report_data(self, page: ft.Page) -> None:
+        start_date, end_date = self._selected_dates()
+        self.report_data = self._report_data_for_range(start_date, end_date)
+        toolbar = self.controls[0]
+        self.controls = [
+            toolbar,
+            self._kpi_row(),
+            self._books_section(),
+            self._loans_section(),
+            self._users_section(),
+        ]
+        page.update()
 
     def _kpi_row(self) -> ft.Row:
         cards = [
@@ -178,17 +227,94 @@ class ReportsView(ft.Column):
         return self._panel("Usuarios con múltiples vencimientos", "Seguimiento a morosos", ft.Column(rows, spacing=9), expand=2)
 
     def _export_csv(self, event: ft.ControlEvent) -> None:
-        path = self._export_directory() / "reporte_bibliogest.csv"
-        with path.open("w", newline="", encoding="utf-8") as file:
-            writer = csv.writer(file)
-            writer.writerow(["Indicador", "Valor"])
-            writer.writerows([["Préstamos activos", self.report_data["active_loans"]], ["Préstamos vencidos", self.report_data["overdue_loans"]], ["Libros en inventario", self.report_data["inventory_books"]], ["Usuarios registrados", self.report_data["registered_users"]]])
-            writer.writerow([])
-            writer.writerow(["Libro", "Préstamos"])
-            writer.writerows(self.report_data["top_books"])
-        self._finish_export(event, path)
+        try:
+            start_date, end_date = self._selected_dates()
+            export_data = get_export_data(start_date, end_date)
+            directory = self._export_directory()
+            headers = {
+                "Books": ["bookID", "isbn", "title", "autor", "category", "publisher", "year", "pages", "description", "stock_total", "stock_available"],
+                "Users": ["userID", "name", "email", "phone", "id_card", "state", "registration_date"],
+                "Orders": ["orderID", "userID", "bookID", "status", "date_lending", "date_return", "actual_return_date"],
+            }
+            paths = []
+            for table_name, rows in export_data.items():
+                path = directory / f"{table_name.lower()}.csv"
+                with path.open("w", newline="", encoding="utf-8-sig") as file:
+                    writer = csv.writer(file)
+                    writer.writerow(headers[table_name])
+                    writer.writerows(rows)
+                paths.append(path)
+        except ValueError as error:
+            self._show_message(event.page, str(error))
+            return
+        self._finish_export(event, paths)
+
+    @staticmethod
+    def _report_data_for_range(start_date: str, end_date: str) -> ReportData:
+        """Genera los datos del PDF únicamente con registros del periodo."""
+        books, users, orders = get_export_data(start_date, end_date).values()
+        book_by_id = {row[0]: row for row in books}
+        user_by_id = {row[0]: row for row in users}
+        book_counts = Counter(row[2] for row in orders)
+        category_counts = Counter(book_by_id[row[2]][4] for row in orders)
+        reader_counts = Counter(user_by_id[row[1]][1] for row in orders if row[1] in user_by_id)
+        today = date.today()
+        active = [row for row in orders if row[3] == "Activo"]
+        overdue = [row for row in active if date.fromisoformat(row[5]) < today]
+        returned = [row for row in orders if row[3] == "Devuelto" and row[6]]
+        on_time = sum(date.fromisoformat(row[6]) <= date.fromisoformat(row[5]) for row in returned)
+        late = len(returned) - on_time
+        overdue_by_user = Counter(
+            row[1]
+            for row in orders
+            if (row[3] == "Activo" and date.fromisoformat(row[5]) < today)
+            or (row[3] == "Devuelto" and row[6] and date.fromisoformat(row[6]) > date.fromisoformat(row[5]))
+        )
+        last_overdue = {}
+        for row in orders:
+            if row[1] in overdue_by_user:
+                last_overdue[row[1]] = max(last_overdue.get(row[1], row[5]), row[6] or row[5])
+        repeat_overdue = [
+            (
+                user_by_id[user_id][1],
+                count,
+                f"Hace {max(0, (today - date.fromisoformat(last_overdue[user_id])).days)} días",
+            )
+            for user_id, count in overdue_by_user.most_common(4)
+            if count > 1 and user_id in user_by_id
+        ]
+        months = sorted({row[4][:7] for row in orders})
+        month_names = ("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
+        monthly_history = []
+        for month in months:
+            lent = sum(row[4].startswith(month) for row in orders)
+            returned_count = sum(row[6] and row[6].startswith(month) for row in returned)
+            monthly_history.append((month_names[int(month[5:7]) - 1], lent, returned_count))
+        books_without_activity = [
+            (row[2], row[4]) for row in books if row[0] not in {order[2] for order in orders}
+        ]
+        return {
+            "active_loans": len(active),
+            "overdue_loans": len(overdue),
+            "inventory_books": sum(row[9] or 0 for row in books),
+            "registered_users": len([row for row in users if row[5] == "Activo"]),
+            "top_books": [(book_by_id[book_id][2], count) for book_id, count in book_counts.most_common(5)],
+            "categories": category_counts.most_common(4),
+            "books_without_activity": books_without_activity,
+            "monthly_history": monthly_history,
+            "returns_on_time": round(100 * on_time / len(returned)) if returned else 0,
+            "returns_late": round(100 * late / len(returned)) if returned else 0,
+            "top_readers": reader_counts.most_common(4),
+            "repeat_overdue_users": repeat_overdue,
+        }
 
     def _export_pdf(self, event: ft.ControlEvent) -> None:
+        try:
+            start_date, end_date = self._selected_dates()
+            report_data = self._report_data_for_range(start_date, end_date)
+        except ValueError as error:
+            self._show_message(event.page, str(error))
+            return
         path = self._export_directory() / "reporte_bibliogest.pdf"
         styles = getSampleStyleSheet()
         title_style = ParagraphStyle(
@@ -257,17 +383,17 @@ class ReportsView(ft.Column):
             report_table(
                 [
                     [paragraph("Indicador"), paragraph("Valor")],
-                    [paragraph("Préstamos activos"), paragraph(self.report_data["active_loans"])],
-                    [paragraph("Préstamos vencidos"), paragraph(self.report_data["overdue_loans"])],
-                    [paragraph("Libros en inventario"), paragraph(self.report_data["inventory_books"])],
-                    [paragraph("Usuarios registrados"), paragraph(self.report_data["registered_users"])],
+                    [paragraph("Préstamos activos"), paragraph(report_data["active_loans"])],
+                    [paragraph("Préstamos vencidos"), paragraph(report_data["overdue_loans"])],
+                    [paragraph("Libros en inventario"), paragraph(report_data["inventory_books"])],
+                    [paragraph("Usuarios registrados"), paragraph(report_data["registered_users"])],
                 ],
                 [125 * mm, 40 * mm],
             ),
             Paragraph("Libros e inventario", section_style),
             report_table(
                 [[paragraph("Libro"), paragraph("Préstamos")]]
-                + [[paragraph(title), paragraph(value)] for title, value in self.report_data["top_books"]],
+                + [[paragraph(title), paragraph(value)] for title, value in report_data["top_books"]],
                 [125 * mm, 40 * mm],
             ),
             PageBreak(),
@@ -275,21 +401,21 @@ class ReportsView(ft.Column):
             report_table(
                 [[paragraph("Categoría"), paragraph("Solicitudes"), paragraph("Porcentaje")]]
                 + [
-                    [paragraph(category), paragraph(value), paragraph(f"{value / sum(total for _, total in self.report_data['categories']):.0%}")]
-                    for category, value in self.report_data["categories"]
+                    [paragraph(category), paragraph(value), paragraph(f"{value / sum(total for _, total in report_data['categories']):.0%}")]
+                    for category, value in report_data["categories"]
                 ],
                 [90 * mm, 35 * mm, 40 * mm],
             ),
             Paragraph("Préstamos y devoluciones", section_style),
             report_table(
                 [[paragraph("Mes"), paragraph("Préstamos"), paragraph("Devoluciones")]]
-                + [[paragraph(month), paragraph(lent), paragraph(returned)] for month, lent, returned in self.report_data["monthly_history"]],
+                + [[paragraph(month), paragraph(lent), paragraph(returned)] for month, lent, returned in report_data["monthly_history"]],
                 [90 * mm, 35 * mm, 40 * mm],
             ),
             Paragraph("Usuarios", section_style),
             report_table(
                 [[paragraph("Lector"), paragraph("Solicitudes")]]
-                + [[paragraph(name), paragraph(count)] for name, count in self.report_data["top_readers"]],
+                + [[paragraph(name), paragraph(count)] for name, count in report_data["top_readers"]],
                 [125 * mm, 40 * mm],
             ),
         ]
@@ -304,7 +430,7 @@ class ReportsView(ft.Column):
             author="BiblioGest",
         )
         document.build(story)
-        self._finish_export(event, path)
+        self._finish_export(event, [path])
 
     @staticmethod
     def _export_directory() -> Path:
@@ -312,9 +438,29 @@ class ReportsView(ft.Column):
         directory.mkdir(parents=True, exist_ok=True)
         return directory
 
+    def _selected_dates(self) -> tuple[str, str]:
+        today = date.today()
+        if self.period == "Últimos 7 días":
+            start = today - timedelta(days=6)
+        elif self.period == "Este mes":
+            start = today.replace(day=1)
+        elif self.period == "Año actual":
+            start = today.replace(month=1, day=1)
+        else:
+            try:
+                start = date.fromisoformat(self.custom_start.value.strip())
+                end = date.fromisoformat(self.custom_end.value.strip())
+            except (AttributeError, ValueError):
+                raise ValueError("Usa fechas válidas con el formato AAAA-MM-DD.")
+            if start > end:
+                raise ValueError("La fecha inicial no puede ser posterior a la fecha final.")
+            return start.isoformat(), end.isoformat()
+        return start.isoformat(), today.isoformat()
+
     @staticmethod
-    def _finish_export(event: ft.ControlEvent, path: Path) -> None:
-        ReportsView._show_message(event.page, f"Archivo exportado: {path.name}")
+    def _finish_export(event: ft.ControlEvent, paths: list[Path]) -> None:
+        names = ", ".join(path.name for path in paths)
+        ReportsView._show_message(event.page, f"Archivos exportados: {names}")
 
     @staticmethod
     def _show_message(page: ft.Page, message: str) -> None:

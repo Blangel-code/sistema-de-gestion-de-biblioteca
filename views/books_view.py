@@ -192,7 +192,6 @@ class BooksView(ft.Container):
             rows.append(
                 ft.DataRow(
                     cells=[
-                        ft.DataCell(ft.Text(book_id, weight=ft.FontWeight.BOLD,)),
                         ft.DataCell(ft.Text(isbn, weight=ft.FontWeight.BOLD)),
                         ft.DataCell(ft.Text(title,no_wrap=True,width=200,overflow=ft.TextOverflow.ELLIPSIS)),
                         ft.DataCell(ft.Text(author)),
@@ -230,7 +229,6 @@ class BooksView(ft.Container):
 
         table = ft.DataTable(
             columns=[
-                ft.DataColumn(ft.Text("ID")),
                 ft.DataColumn(ft.Text("ISBN")),
                 ft.DataColumn(ft.Text("Título")),
                 ft.DataColumn(ft.Text("Autor")),

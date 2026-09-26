@@ -74,10 +74,25 @@ QUERY_DELETE_USERS = "DELETE FROM Users WHERE userID = ?"
 QUERY_UPDATE_USER = """UPDATE Users SET name = ?, email = ?, phone = ?, id_card = ? WHERE userID = ?"""
 """Actualiza los datos editables de un usuario."""
 
-QUERY_SEARCH_ORDERS = """SELECT o.orderID, u.name, u.id_card, b.title, o.status, o.date_lending, o.date_return FROM Orders o
-JOIN Users u ON o.userID = u.userID
-JOIN Books b ON o.bookID = b.bookID
-WHERE (u.name LIKE ? OR b.title LIKE ? OR o.orderID LIKE ?) AND (o.status = ? OR ? IS NULL)
+QUERY_SEARCH_ORDERS = """SELECT orderID, name, id_card, title, display_status,
+date_lending, date_return, status
+FROM (
+    SELECT o.orderID, u.name, u.id_card, b.title,
+        CASE
+            WHEN (o.status = 'Activo' AND date(o.date_return) < date('now'))
+              OR (o.status = 'Devuelto'
+                  AND o.actual_return_date IS NOT NULL
+                  AND date(o.actual_return_date) > date(o.date_return))
+            THEN 'Retrasado'
+            ELSE o.status
+        END AS display_status,
+        o.date_lending, o.date_return, o.status
+    FROM Orders o
+    JOIN Users u ON o.userID = u.userID
+    JOIN Books b ON o.bookID = b.bookID
+)
+WHERE (name LIKE ? OR title LIKE ?)
+  AND (display_status = ? OR ? IS NULL)
 """
 """Query Para Buscar Las Ordenes Existentes En La Tabla 'Orders' En La Base De Datos. Devuelve Los Valores Necesarios Para Mostrar De Manera Visual Mediante 2 Left Joins. Uno Que Une a Tabla Users Y El Otro Une A La Tabla Books.
 Returns:
@@ -149,8 +164,8 @@ SELECT
 FROM months
 ORDER BY month_start"""
 QUERY_REPORT_RETURNS = """SELECT
-    COALESCE(SUM(CASE WHEN date(actual_return_date) <= date(date_return) THEN 1 ELSE 0 END), 0),
-    COALESCE(SUM(CASE WHEN date(actual_return_date) > date(date_return) THEN 1 ELSE 0 END), 0)
+    COALESCE(ROUND(100.0 * SUM(CASE WHEN date(actual_return_date) <= date(date_return) THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)), 0),
+    COALESCE(ROUND(100.0 * SUM(CASE WHEN date(actual_return_date) > date(date_return) THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0)), 0)
 FROM Orders
 WHERE status = 'Devuelto' AND actual_return_date IS NOT NULL"""
 QUERY_REPORT_TOP_READERS = """SELECT u.name, COUNT(*) AS loans
@@ -176,6 +191,38 @@ WHERE (o.status = 'Activo' AND date(o.date_return) < date('now'))
    OR (o.status = 'Devuelto' AND date(o.actual_return_date) > date(o.date_return))
 GROUP BY u.userID, u.name, overdue.last_overdue_date
 ORDER BY overdue_count DESC, u.name
+LIMIT ?"""
+
+QUERY_EXPORT_BOOKS = """SELECT bookID, isbn, title, autor, category, publisher, year,
+pages, description, stock_total, stock_available
+FROM Books
+ORDER BY bookID"""
+QUERY_EXPORT_USERS = """SELECT userID, name, email, phone, id_card, state, registration_date
+FROM Users
+WHERE date(registration_date) BETWEEN date(?) AND date(?)
+ORDER BY userID"""
+QUERY_EXPORT_ORDERS = """SELECT orderID, userID, bookID, status, date_lending,
+date_return, actual_return_date
+FROM Orders
+WHERE date(date_lending) BETWEEN date(?) AND date(?)
+ORDER BY orderID"""
+
+QUERY_DASHBOARD_SUMMARY = """SELECT
+    (SELECT COALESCE(SUM(stock_total), 0) FROM Books),
+    (SELECT COUNT(*) FROM Users WHERE state = 'Activo'),
+    (SELECT COUNT(*) FROM Orders WHERE status = 'Activo'),
+    (SELECT COUNT(*) FROM Orders
+     WHERE status = 'Activo' AND date(date_return) < date('now'))"""
+QUERY_DASHBOARD_ACTIVITY = """SELECT b.title, u.name, o.date_lending,
+    CASE
+        WHEN o.status = 'Activo' AND date(o.date_return) < date('now') THEN 'Retrasado'
+        WHEN o.status = 'Activo' THEN 'Activo'
+        ELSE 'Devuelto'
+    END AS display_status
+FROM Orders o
+JOIN Books b ON b.bookID = o.bookID
+JOIN Users u ON u.userID = o.userID
+ORDER BY datetime(o.date_lending) DESC, o.orderID DESC
 LIMIT ?"""
 
 def make_cursor(query:str,parameters:tuple = (),fetch:bool=False, message:str|None = None, comprobate_delete:bool=False) -> tuple[bool, str]|list:
@@ -247,13 +294,13 @@ def eliminate_user(delete_user:int) ->  tuple[bool, str]:
     """Ejecuta Una Query Para Eliminar Un Libro De La Base De Datos. Devuelve False Si Ocurrió Un Error o True Si Se Ejecutó Correctamente"""
     return make_cursor(QUERY_DELETE_USERS,(delete_user,),comprobate_delete=True,message="El Usuario Se Ha Eliminado Con Éxito")
             
-def search_loans(name_or_title_or_id:str,status:str) -> list:
+def search_loans(name_or_title:str,status:str) -> list:
     """Ejecuta Una Query Para Buscar Las Ordenes Existentes. Devuelve Los Valores Necesarios Para Mostrar De Manera Visual
 Returns:
 Devuelve Los Valores: OrderID, Nombre, Cedula, Titulo, Estado, Fecha De Prestamo, Fecha De Devolucion"""
-    value_for_search = f"%{name_or_title_or_id}%"
+    value_for_search = f"%{name_or_title}%"
     status = None if status == "Todos" else status
-    return make_cursor(QUERY_SEARCH_ORDERS,(value_for_search,value_for_search,value_for_search,status,status),fetch=True)
+    return make_cursor(QUERY_SEARCH_ORDERS,(value_for_search,value_for_search,status,status),fetch=True)
 
 def change_status_loan(loan_id: int) -> tuple[bool, str]:
     """Marca una orden como devuelta y repone el ejemplar en una sola transacción."""
@@ -322,6 +369,37 @@ def select_users_and_books_for_loans() -> list:
     Returns:
     Devuelve 2 Variables Distintas; La Primera Una Lista De Los Usuarios Y La Segunda Una Lista De Los Libros"""
     return make_cursor(QUERY_SELECT_USERS_FOR_LOANS,fetch=True), make_cursor(QUERY_SELECT_BOOKS_FOR_LOANS,fetch=True)
+
+
+def get_export_data(start_date: str, end_date: str) -> dict[str, list[tuple]]:
+    """Obtiene las tres tablas para exportarlas respetando el rango indicado."""
+    data = {
+        "Books": make_cursor(QUERY_EXPORT_BOOKS, fetch=True),
+        "Users": make_cursor(QUERY_EXPORT_USERS, (start_date, end_date), fetch=True),
+        "Orders": make_cursor(QUERY_EXPORT_ORDERS, (start_date, end_date), fetch=True),
+    }
+    if any(not isinstance(rows, list) for rows in data.values()):
+        raise RuntimeError("No se pudieron obtener los datos para exportar")
+    return data
+
+
+def get_dashboard_data() -> dict[str, int | list[tuple[str, str, str, str]]]:
+    """Obtiene los indicadores y movimientos recientes del panel principal."""
+    summary = make_cursor(QUERY_DASHBOARD_SUMMARY, fetch=True)
+    activity = make_cursor(QUERY_DASHBOARD_ACTIVITY, (5,), fetch=True)
+    if (
+        not isinstance(summary, list)
+        or not summary
+        or not isinstance(activity, list)
+    ):
+        raise RuntimeError("No se pudo obtener la información del dashboard")
+    return {
+        "inventory_books": int(summary[0][0]),
+        "active_users": int(summary[0][1]),
+        "active_loans": int(summary[0][2]),
+        "overdue_loans": int(summary[0][3]),
+        "activity": activity,
+    }
 
 class ReportData(TypedDict):
     """Contrato de datos que consume la vista de reportes."""

@@ -3,6 +3,7 @@
 import flet as ft
 
 from config import PALETTE as COLORS
+from querys import get_dashboard_data
 
 
 class SummaryCard(ft.Container):
@@ -45,7 +46,7 @@ class SummaryCard(ft.Container):
 
 
 class DashboardHeader(ft.Row):
-    """Título, subtítulo y acciones propias del panel principal."""
+    """Título y subtítulo del panel principal."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -67,14 +68,6 @@ class DashboardHeader(ft.Row):
                     spacing=5,
                     expand=True,
                 ),
-                ft.OutlinedButton(
-                    "Registrar préstamo",
-                    icon=ft.Icons.SWAP_HORIZ_OUTLINED,
-                ),
-                ft.ElevatedButton(
-                    "Añadir libro",
-                    icon=ft.Icons.MENU_BOOK_OUTLINED,
-                ),
             ],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=8,
@@ -85,6 +78,7 @@ class DashboardView(ft.Column):
     """Composición completa del dashboard, aislada del layout de navegación."""
 
     def __init__(self) -> None:
+        self.dashboard_data = get_dashboard_data()
         self.header = DashboardHeader()
         super().__init__(
             controls=[
@@ -92,22 +86,22 @@ class DashboardView(ft.Column):
                     controls=[
                         SummaryCard(
                             "Libros en catálogo",
-                            "1,248",
-                            "+12 este mes",
+                            f"{self.dashboard_data['inventory_books']:,}",
+                            "Unidades registradas en inventario",
                             ft.Icons.MENU_BOOK_OUTLINED,
                             COLORS.PRIMARY,
                         ),
                         SummaryCard(
                             "Usuarios activos",
-                            "356",
-                            "+8 esta semana",
+                            f"{self.dashboard_data['active_users']:,}",
+                            "Usuarios registrados activos",
                             ft.Icons.GROUP_OUTLINED,
                             COLORS.SECONDARY,
                         ),
                         SummaryCard(
                             "Préstamos activos",
-                            "84",
-                            "6 vencen pronto",
+                            f"{self.dashboard_data['active_loans']:,}",
+                            f"{self.dashboard_data['overdue_loans']:,} vencidos",
                             ft.Icons.SWAP_HORIZ_OUTLINED,
                             COLORS.WARNING,
                         ),
@@ -116,7 +110,9 @@ class DashboardView(ft.Column):
                 ),
                 ft.Container(height=8),
                 ft.Row(
-                    controls=[self._activity_panel(), self._quick_actions_panel()],
+                    controls=[
+                        self._activity_panel(),
+                    ],
                     spacing=16,
                     vertical_alignment=ft.CrossAxisAlignment.START,
                 ),
@@ -127,11 +123,12 @@ class DashboardView(ft.Column):
         )
 
     def _activity_panel(self) -> ft.Container:
-        activities = [
-            ("El principito", "María González", "Hoy, 10:42", COLORS.PRIMARY),
-            ("Cien años de soledad", "Carlos Rodríguez", "Ayer, 16:18", COLORS.SECONDARY),
-            ("Hábitos atómicos", "Ana Martínez", "Ayer, 11:05", COLORS.WARNING),
-        ]
+        activities = self.dashboard_data["activity"]
+        colors_by_status = {
+            "Activo": COLORS.PRIMARY,
+            "Devuelto": COLORS.SECONDARY,
+            "Retrasado": COLORS.WARNING,
+        }
         rows = [
             ft.Row(
                 controls=[
@@ -140,7 +137,7 @@ class DashboardView(ft.Column):
                         controls=[
                             ft.Text(title, size=13, weight=ft.FontWeight.W_600),
                             ft.Text(
-                                f"Prestado a {user}",
+                                f"Préstamo de {user} · {status}",
                                 size=12,
                                 color=COLORS.TEXT_MUTED,
                             ),
@@ -152,7 +149,8 @@ class DashboardView(ft.Column):
                 ],
                 spacing=10,
             )
-            for title, user, date, color in activities
+            for title, user, date, status in activities
+            for color in [colors_by_status.get(status, COLORS.PRIMARY)]
         ]
         return ft.Container(
             expand=2,
@@ -170,47 +168,6 @@ class DashboardView(ft.Column):
                     ),
                     ft.Divider(height=12, color=COLORS.BORDER),
                     *rows,
-                ],
-                spacing=12,
-            ),
-        )
-
-    def _quick_actions_panel(self) -> ft.Container:
-        return ft.Container(
-            expand=1,
-            padding=20,
-            bgcolor=COLORS.PRIMARY,
-            border_radius=12,
-            content=ft.Column(
-                controls=[
-                    ft.Text(
-                        "Acciones rápidas",
-                        size=16,
-                        weight=ft.FontWeight.BOLD,
-                        color=COLORS.SURFACE,
-                    ),
-                    ft.Text(
-                        "Accede a las tareas más frecuentes.",
-                        size=12,
-                        color=ft.Colors.BLUE_100,
-                    ),
-                    ft.Divider(height=12, color=ft.Colors.BLUE_400),
-                    ft.FilledButton(
-                        "Registrar préstamo",
-                        icon=ft.Icons.ADD,
-                        color=COLORS.PRIMARY_DARK,
-                        bgcolor=COLORS.SURFACE,
-                        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)),
-                    ),
-                    ft.OutlinedButton(
-                        "Añadir libro",
-                        icon=ft.Icons.MENU_BOOK_OUTLINED,
-                        style=ft.ButtonStyle(
-                            color=COLORS.SURFACE,
-                            side=ft.BorderSide(1, ft.Colors.BLUE_200),
-                            shape=ft.RoundedRectangleBorder(radius=8),
-                        ),
-                    ),
                 ],
                 spacing=12,
             ),

@@ -22,6 +22,7 @@ class Palette:
     DANGER = ft.Colors.RED_800
     DANGER_BG = ft.Colors.RED_50
     WARNING = ft.Colors.ORANGE_700
+    WARNING_BG = ft.Colors.ORANGE_50
 
 
 PALETTE = Palette()

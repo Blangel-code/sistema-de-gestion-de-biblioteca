@@ -18,7 +18,7 @@ class LoansView(ft.Container):
     def __init__(self) -> None:
         self.header = self._header()
         self.search_field = ft.TextField(
-            hint_text="Buscar por usuario, libro o ID",
+            hint_text="Buscar por usuario o libro",
             prefix_icon=ft.Icons.SEARCH,
             expand=True,
             border_radius=8,
@@ -123,7 +123,7 @@ class LoansView(ft.Container):
     def _active_loans_card(self) -> ft.Card:
         loans = search_loans(self.search_field.value,self.status_dropdown.value)
         rows = []
-        for loan_id, name, card_id, title, status, loan_date, return_date in loans:
+        for loan_id, name, card_id, title, status, loan_date, return_date, stored_status in loans:
             loan = {
                 "prestamo_id": loan_id,
                 "nombre": name,
@@ -136,19 +136,17 @@ class LoansView(ft.Container):
             rows.append(
                 ft.DataRow(
                     cells=[
-                        ft.DataCell(ft.Text(loan_id, weight=ft.FontWeight.BOLD)),
                         ft.DataCell(ft.Column([ft.Text(name),ft.Text(card_id, style=ft.TextStyle(italic=True))],spacing=0)),
-                        ft.DataCell(ft.Text(title)),
+                        ft.DataCell(ft.Text(title,width=120,overflow=ft.TextOverflow.ELLIPSIS)),
                         ft.DataCell(ft.Text(loan_date)),
                         ft.DataCell(ft.Text(return_date)),
                         ft.DataCell(self._status_badge(status)),
-                        ft.DataCell(ft.OutlinedButton("Procesar devolución", on_click=lambda event, selected_loan=loan: self._open_process_dialog(event,selected_loan), icon=ft.Icons.CHECK), disabled=(status == "Devuelto")),
+                        ft.DataCell(ft.OutlinedButton("Procesar devolución", on_click=lambda event, selected_loan=loan: self._open_process_dialog(event,selected_loan), icon=ft.Icons.CHECK), disabled=(stored_status == "Devuelto")),
                     ]
                 )
             )
         table = ft.DataTable(
             columns=[
-                ft.DataColumn(ft.Text("ID")),
                 ft.DataColumn(ft.Text("Usuario")),
                 ft.DataColumn(ft.Text("Libro")),
                 ft.DataColumn(ft.Text("Fecha préstamo")),
@@ -168,7 +166,6 @@ class LoansView(ft.Container):
             expand=True,
             bgcolor=COLORS.SURFACE,
             content=ft.Container(
-                padding=16,
                 content=ft.Column(
                     [
                         ft.Column(
@@ -188,13 +185,14 @@ class LoansView(ft.Container):
     @staticmethod
     def _status_badge(status: str) -> ft.Container:
         active = status == "Activo"
+        overdue = status == "Retrasado"
         return ft.Container(
             content=ft.Text(
                 status,
                 size=12,
-                color=COLORS.SUCCESS if active else COLORS.DANGER,
+                color=COLORS.SUCCESS if active else COLORS.WARNING if overdue else COLORS.DANGER,
             ),
-            bgcolor=COLORS.SUCCESS_BG if active else COLORS.DANGER_BG,
+            bgcolor=COLORS.SUCCESS_BG if active else COLORS.WARNING_BG if overdue else COLORS.DANGER_BG,
             border_radius=12,
             padding=ft.Padding.symmetric(horizontal=10, vertical=4),
         )

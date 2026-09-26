@@ -171,7 +171,6 @@ class UsersView(ft.Container):
             rows.append(
                 ft.DataRow(
                     cells=[
-                        ft.DataCell(ft.Text(user_id, weight=ft.FontWeight.BOLD)),
                         ft.DataCell(ft.Text(name)),
                         ft.DataCell(ft.Text(email)),
                         ft.DataCell(ft.Text(phone)),
@@ -211,7 +210,6 @@ class UsersView(ft.Container):
             )
         table = ft.DataTable(
             columns=[
-                ft.DataColumn(ft.Text("ID")),
                 ft.DataColumn(ft.Text("Nombre")),
                 ft.DataColumn(ft.Text("Correo electrónico")),
                 ft.DataColumn(ft.Text("Teléfono")),
@@ -238,7 +236,6 @@ class UsersView(ft.Container):
                     expand=True,
                     scroll=ft.ScrollMode.AUTO,
                 ),
-                padding=8,
                 expand=True,
             ),
         )
