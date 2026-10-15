@@ -2,6 +2,12 @@
 
 Este proyecto es una aplicación de consola escrita en Python para gestionar una biblioteca. Permite registrar usuarios, registrar libros y llevar el control de los préstamos, incluyendo la fecha en la que se realizó cada préstamo. Actualmente es una aplicación de línea de comandos; en el futuro se planea agregar una interfaz gráfica.
 
+<img width="1260" height="679" alt="proyecto-biblioteca-1" src="https://github.com/user-attachments/assets/bac06878-f969-4bbf-a6bf-f4b81d1e1310" />
+<img width="1263" height="681" alt="proyecto-biblioteca-4" src="https://github.com/user-attachments/assets/5b94122f-b042-4d4b-a0c8-6d2949dac142" />
+<img width="1265" height="682" alt="proyecto-biblioteca-3" src="https://github.com/user-attachments/assets/4b5fb473-7251-4a26-8cac-244a84b38921" />
+<img width="1262" height="679" alt="proyecto-biblioteca-2" src="https://github.com/user-attachments/assets/812d4dfa-f8ab-4066-95fc-0ee72185492e" />
+
+
 ## Características
 
 - Registro de usuarios con datos básicos (nombre, identificación y edad).
