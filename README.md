@@ -1,6 +1,6 @@
 # Sistema de gestión de biblioteca
 
-Este proyecto es una aplicación de consola escrita en Python para gestionar una biblioteca. Permite registrar usuarios, registrar libros y llevar el control de los préstamos, incluyendo la fecha en la que se realizó cada préstamo. Actualmente es una aplicación de línea de comandos; en el futuro se planea agregar una interfaz gráfica.
+Este proyecto es una aplicación de consola escrita en Python para gestionar una biblioteca. Permite registrar usuarios, registrar libros y llevar el control de los préstamos, incluyendo la fecha en la que se realizó cada préstamo. Actualmente es una apliación de Interfaz
 
 <img width="1260" height="679" alt="proyecto-biblioteca-1" src="https://github.com/user-attachments/assets/bac06878-f969-4bbf-a6bf-f4b81d1e1310" />
 <img width="1263" height="681" alt="proyecto-biblioteca-4" src="https://github.com/user-attachments/assets/5b94122f-b042-4d4b-a0c8-6d2949dac142" />
@@ -15,6 +15,8 @@ Este proyecto es una aplicación de consola escrita en Python para gestionar una
 - Registro y seguimiento de préstamos con fecha de préstamo.
 - Búsqueda y listado de usuarios y libros.
 - Gestión básica de estado de disponibilidad de los libros.
+- Creación de informes mediante PDF o archivos .csv.
+- Estadísticas globales de libros y usuarios
 
 ## Requisitos
 
@@ -38,19 +40,21 @@ Sigue las indicaciones en pantalla para:
 - Agregar libros
 - Registrar préstamos
 - Consultar listados
+- Reportes sobre el uso de la app
 
 ## Estructura del proyecto
 
 - README.md
-- Sistema_de_Gestion_de_Biblioteca.py / app.py  <- punto de entrada de la aplicación
-- data.db
+- main.py  <- punto de entrada de la aplicación
+- Querys.py
+- Config.py
+- views/*.py <- secciones de la interfaz gráfica
+- componets/modals.py <- componentes modales para las interfaces graficas
+- data/data.db
+- data/exports/
 - LICENSE.txt
 
 Ajusta la estructura según los archivos reales del repositorio.
-
-## Buenas prácticas y mejoras propuestas
-
-- Añadir una interfaz gráfica (Flet) para mejorar la experiencia.
 
 ## Contribuciones
 
